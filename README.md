@@ -88,14 +88,6 @@ offers hardware acceleration based on Qualcomm platforms, utilizing pre-trained 
    (ssh) ros2 launch ${package_name} ${launch-file}
    ```
 
-## Supported Platforms
-
-This package is designed and tested to be compatible with ROS 2 Humble running on Qualcom RB3 gen2.
-
-| Hardware                        | Software                |
-| ------------------------------- | ----------------------- |
-| RB3 gen2                        | LE.QCROBOTICS.1.0       |
-
 ## Resources
 
 - [Qualcomm AI Engine Direct](https://docs.qualcomm.com/bundle/publicresource/topics/80-63442-50/introduction.html)
