@@ -1,3 +1,6 @@
+// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
 #include <tensorflow/lite/kernels/register.h>
 
 #include "qnn_delegate_inference/qnn_delegate_inference.hpp"

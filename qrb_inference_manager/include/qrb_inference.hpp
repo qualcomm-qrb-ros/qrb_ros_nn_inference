@@ -1,6 +1,10 @@
+// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
 #ifndef QRB_INFERENCE_HPP_
 #define QRB_INFERENCE_HPP_
 
+#include<stdexcept>
 #include <memory>
 #include <string>
 #include <iostream>
