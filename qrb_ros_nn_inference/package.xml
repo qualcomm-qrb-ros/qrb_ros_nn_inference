@@ -12,6 +12,8 @@ schematypens="http://www.w3.org/2001/XMLSchema"?>
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>rcutils</depend>
+
+  <depend>qrb_inference_manager</depend>
   <depend>qrb_ros_tensor_list_msgs</depend>
 
   <test_depend>ament_lint_auto</test_depend>
