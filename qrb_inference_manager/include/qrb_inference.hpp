@@ -1,10 +1,9 @@
 // Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-#ifndef QRB_INFERENCE_HPP_
-#define QRB_INFERENCE_HPP_
+#ifndef QRB_INFERENCE_MANAGER_QRB_INFERENCE_HPP_
+#define QRB_INFERENCE_MANAGER_QRB_INFERENCE_HPP_
 
-#include<stdexcept>
 #include <memory>
 #include <string>
 #include <iostream>
@@ -14,7 +13,20 @@ namespace qrb::inference_mgr
 {
 
 template<typename... Args>
-void QRB_DEBUG(Args&&... args) {
+void QRB_INFO(Args&&... args) {
+  std::cout << "\033[32m[QRB INFO] \033[0m";
+  (std::cout << ... << args) << std::endl;
+}
+
+template<typename... Args>
+void QRB_WARNING(Args&&... args) {
+  std::cout << "\033[33m[QRB WRANING] \033[0m";
+  (std::cout << ... << args) << std::endl;
+}
+
+template<typename... Args>
+void QRB_ERROR(Args&&... args) {
+  std::cout << "\033[31m[QRB ERROR] \033[0m";
   (std::cout << ... << args) << std::endl;
 }
 
@@ -28,9 +40,9 @@ enum class StatusCode {
 };
 
 struct OutputTensor {
-  std::vector<uint8_t> output_tensor_data_;
-  std::string output_tensor_name_;
-  std::vector<uint32_t> output_tensor_shape_;
+  std::vector<uint8_t> output_tensor_data;
+  std::string output_tensor_name;
+  std::vector<uint32_t> output_tensor_shape;
 };
 
 class QrbInference

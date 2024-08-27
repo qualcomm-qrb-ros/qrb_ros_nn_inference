@@ -32,8 +32,9 @@ private:
   rclcpp::Subscription<custom_msg::TensorList>::SharedPtr sub_{ nullptr };
   rclcpp::Publisher<custom_msg::TensorList>::SharedPtr pub_{ nullptr };
 
-  bool init(const std::string &backend_option, const std::string &model_path,
-                                               const bool &inference_from_file);
+  bool init(const std::string &model_path,
+            const std::string &backend_option,
+            const std::string &qnn_syslib_path);
   void subscription_callback(const custom_msg::TensorList &msg);
   void publish_msg(custom_msg::TensorList pub_tensors);
 };

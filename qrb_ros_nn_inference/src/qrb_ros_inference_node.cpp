@@ -14,13 +14,15 @@ Node("qrb_ros_inference_node", options)
 {
   std::string backend_option = this->declare_parameter("backend_option", "");
   std::string model_path = this->declare_parameter("model_path", "");
-  bool inference_from_file = this->declare_parameter("inference_from_file", false);
+  std::string qnn_syslib_path = this->declare_parameter("qnn_syslib_path", "");
 
-  if(false == this->init(backend_option, model_path, inference_from_file)) {
+  if(false == this->init(model_path, backend_option, qnn_syslib_path)) {
     rclcpp::shutdown();
   }
 
-  this->pub_ = this->create_publisher<custom_msg::TensorList>("qrb_inference_output_tensor", 10);
+  rclcpp::PublisherOptions pub_option;
+  pub_option.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+  this->pub_ = this->create_publisher<custom_msg::TensorList>("qrb_inference_output_tensor", 10, pub_option);
 
   auto sub_opt = rclcpp::SubscriptionOptions();
   sub_opt.callback_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
@@ -67,9 +69,9 @@ void QrbRosInferenceNode::publish_msg(custom_msg::TensorList pub_tensors)
   for(auto rt : result_tensors) {
     custom_msg::Tensor tensor;
     tensor.data_type = static_cast<int>(TensorDataType::FLOAT32);
-    tensor.name = rt.output_tensor_name_;
-    tensor.shape = rt.output_tensor_shape_;
-    tensor.data = rt.output_tensor_data_;
+    tensor.name = rt.output_tensor_name;
+    tensor.shape = rt.output_tensor_shape;
+    tensor.data = rt.output_tensor_data;
     pub_tensors.tensor_list.emplace_back(tensor);
   }
 
@@ -79,19 +81,22 @@ void QrbRosInferenceNode::publish_msg(custom_msg::TensorList pub_tensors)
 
 /**
  * \brief initilize the qrb_inference_mgr_
- * \param backend_option backend lib of QNN
  * \param model_path path of model
- * \param inference_from_file whether get input data of model from file path
+ * \param backend_option backend lib of QNN
+ * \param qnn_syslib_path path of libQnnSystem.so
  * \return true if success or false for failed
 */
-bool QrbRosInferenceNode::init(
-  const std::string &backend_option,
+bool QrbRosInferenceNode::init
+(
   const std::string &model_path,
-  const bool &inference_from_file)
+  const std::string &backend_option,
+  const std::string &qnn_syslib_path
+)
 try
 {
-  qrb_inference_mgr_ = std::make_unique<qrb::inference_mgr::QrbInferenceManager>(
-                       backend_option, model_path, inference_from_file);
+  qrb_inference_mgr_ = std::make_unique<qrb::inference_mgr::QrbInferenceManager>(model_path,
+                                                                                 backend_option,
+                                                                                 qnn_syslib_path);
 
   return true;
 }

@@ -1,6 +1,8 @@
 // Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
+#include<stdexcept>
+
 #include "qrb_inference_manager.hpp"
 #include "qnn_inference/qnn_inference.hpp"
 #include "qnn_delegate_inference/qnn_delegate_inference.hpp"
@@ -9,16 +11,16 @@ namespace qrb::inference_mgr
 {
 
 /**
- * \brief initialize qrb_inference_ to QnnInferenceFromFile or QnnInference or QnnDelegateInference
+ * \brief initialize qrb_inference_ to QnnInference or QnnDelegateInference
  * \param backend_option backend lib of QNN
  * \param model_path path of model
- * \param inference_from_file whether get input data of model from file path
+ * \param qnn_syslib_path path of libQnnSystem.so
  * \throw std::logic_error, if param not meet requirement
 */
 QrbInferenceManager::QrbInferenceManager(
-  const std::string &backend_option,
   const std::string &model_path,
-  const bool &inference_from_file)
+  const std::string &backend_option,
+  const std::string &qnn_syslib_path)
 {
   auto param_error = std::logic_error("ERROR: Node parameters are invalid!");
   auto check_empty = [param_error](std::string s) {
@@ -27,26 +29,28 @@ QrbInferenceManager::QrbInferenceManager(
     }
   };
 
-  check_empty(model_path);
-
-  auto is_qnn_model = (std::string::npos != model_path.find(".so"));
+  auto is_so_model = (std::string::npos != model_path.find(".so"));
+  auto is_bin_model = (std::string::npos != model_path.find(".bin"));
   auto is_tflite_model = (std::string::npos != model_path.find(".tflite"));
 
-  if(is_qnn_model) { // qnn model, need to provide vaild backend_option
-    check_empty(backend_option);
-
-    if(true == inference_from_file) {
-      qrb_inference_ = std::make_unique<QnnInferenceFromFile>(backend_option, model_path);
-    }
-    else {
-      qrb_inference_ = std::make_unique<QnnInference>(backend_option, model_path);
-    }
+  if(!is_so_model && !is_bin_model && !is_tflite_model) {
+    throw param_error;
   }
-  else if(is_tflite_model) { // tflite model
-    qrb_inference_ = std::make_unique<QnnDelegateInference>(model_path);
+
+  check_empty(model_path);
+
+  if(is_tflite_model) {
+    qrb_inference_ = std::make_unique<QnnDelegateInference>(model_path, backend_option);
   }
   else {
-    throw param_error;
+    check_empty(backend_option);
+    if(is_so_model) {
+      qrb_inference_ = std::make_unique<QnnInference>(model_path, backend_option);
+    }
+    else {
+      check_empty(qnn_syslib_path);
+      qrb_inference_ = std::make_unique<QnnInference>(model_path, backend_option, qnn_syslib_path);
+    }
   }
 
   if(qrb_inference_->inference_init() != StatusCode::SUCCESS) {
