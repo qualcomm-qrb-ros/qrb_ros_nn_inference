@@ -18,7 +18,7 @@ offers hardware acceleration based on Qualcomm platforms, utilizing pre-trained 
 
 ### Build
 
-1. Setup environments follow this document 's [Set up the cross-compile environment.](https://docs.qualcomm.com/bundle/publicresource/topics/80-65220-2/develop-your-first-application_6.html?product=1601111740013072&facet=Qualcomm%20Intelligent%20Robotics%20(QIRP)%20Product%20SDK&state=releasecandidate) part
+1. Set up the cross-compile environment, follow the [first two steps](https://docs.qualcomm.com/bundle/publicresource/topics/80-65220-2/download-the-prebuilt-robotics-image_3_1.html) to download the qirp-sdk.
 
 2. Create `ros_ws` directory in `<qirp_decompressed_workspace>/qirp-sdk/`
 
