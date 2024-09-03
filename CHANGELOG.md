@@ -5,9 +5,9 @@
 - Initial version release for ROS2 Humble
 - Contributors: Na Song
 
-## 2.0.0 (2024-08-26)
+## 1.1.0 (2024-08-26)
 
-Version 2.0.0 update:
+Version 1.1.0 update:
 
 - qrb-inference-manager
   1. clean up all dependency of QnnSampleApp

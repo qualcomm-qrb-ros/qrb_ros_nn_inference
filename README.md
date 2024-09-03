@@ -7,8 +7,8 @@ offers hardware acceleration based on Qualcomm platforms, utilizing pre-trained 
 
 ## System Requirements
 
-- Version of TFLite should be higher than 2.11.1
-- ROS 2 Humble and later.
+- Version of TFLite should be higher than 2.15.0
+- ROS 2 Humble
 
 ## Quickstart
 
