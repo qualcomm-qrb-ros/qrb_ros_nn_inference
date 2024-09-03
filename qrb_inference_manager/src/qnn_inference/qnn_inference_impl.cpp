@@ -6,53 +6,47 @@
 namespace qrb::inference_mgr
 {
 
-QnnInterface::QnnInterface
-(
-  const std::string &model_path,
-  const std::string &backend_option,
-  void** backend_handle,
-  void** model_handle
-)
+QnnInterface::QnnInterface(const std::string & model_path,
+    const std::string & backend_option,
+    void ** backend_handle,
+    void ** model_handle)
 {
-  if(false == init_qnn_backend_interface(backend_option, backend_handle)) {
+  if (false == init_qnn_backend_interface(backend_option, backend_handle)) {
     throw std::logic_error("ERROR: Get QNN backend interface failed!");
   }
 
-  if(false == init_qnn_graph_interface(model_path, model_handle)) {
+  if (false == init_qnn_graph_interface(model_path, model_handle)) {
     throw std::logic_error("ERROR: Get QNN graph interface failed!");
   }
 }
 
-QnnInterface::QnnInterface
-(
-  const std::string &backend_option,
-  void** backend_handle,
-  const std::string &qnn_syslib_path,
-  void** sys_lib_handle
-)
+QnnInterface::QnnInterface(const std::string & backend_option,
+    void ** backend_handle,
+    const std::string & qnn_syslib_path,
+    void ** sys_lib_handle)
 {
-  if(false == init_qnn_backend_interface(backend_option, backend_handle)) {
+  if (false == init_qnn_backend_interface(backend_option, backend_handle)) {
     throw std::logic_error("ERROR: Get QNN backend interface failed!");
   }
 
-  if(false == init_qnn_system_interface(qnn_syslib_path, sys_lib_handle)) {
+  if (false == init_qnn_system_interface(qnn_syslib_path, sys_lib_handle)) {
     throw std::logic_error("ERROR: Get QNN system interface failed!");
   }
 }
 
-void* QnnInterface::dlopen_helper(const char *file_name, const int flags)
+void * QnnInterface::dlopen_helper(const char * file_name, const int flags)
 {
   int real_flags = 0;
 
-  if (flags & 0x0001) { // resolve undefined symbols before return. MUST be specified
+  if (flags & 0x0001) {  // resolve undefined symbols before return. MUST be specified
     real_flags |= RTLD_NOW;
   }
 
-  if (flags & 0x0002) { // optional, but the default specified
+  if (flags & 0x0002) {  // optional, but the default specified
     real_flags |= RTLD_LOCAL;
   }
 
-  if (flags & 0x0004) { // optional, resolve symbol globally
+  if (flags & 0x0004) {  // optional, resolve symbol globally
     real_flags |= RTLD_GLOBAL;
   }
 
@@ -60,13 +54,12 @@ void* QnnInterface::dlopen_helper(const char *file_name, const int flags)
 }
 
 template <class T>
-inline T QnnInterface::resolve_symbol(void* lib_handle, const char* sym)
+inline T QnnInterface::resolve_symbol(void * lib_handle, const char * sym)
 {
-  void* ptr = nullptr;
-  if(lib_handle == (void *)(0x4)) { // specify this address to distingiush from NULL pointer
+  void * ptr = nullptr;
+  if (lib_handle == (void *)(0x4)) {  // specify this address to distingiush from NULL pointer
     ptr = ::dlsym(RTLD_DEFAULT, sym);
-  }
-  else {
+  } else {
     ptr = ::dlsym(lib_handle, sym);
   }
 
@@ -80,13 +73,10 @@ inline T QnnInterface::resolve_symbol(void* lib_handle, const char* sym)
 /// @param backend_option file path of libQnnBackend.so
 /// @param backend_handle pointer point to qnn interface
 /// @return true of false
-bool QnnInterface::init_qnn_backend_interface
-(
-  const std::string &backend_option,
-  void** backend_handle
-)
+bool QnnInterface::init_qnn_backend_interface(const std::string & backend_option,
+    void ** backend_handle)
 {
-  void* lib_backend_handle = dlopen_helper(backend_option.c_str(), 0x0001 | 0x0004);
+  void * lib_backend_handle = dlopen_helper(backend_option.c_str(), 0x0001 | 0x0004);
 
   if (nullptr == lib_backend_handle) {
     QRB_ERROR("Unable to load backend!");
@@ -98,17 +88,17 @@ bool QnnInterface::init_qnn_backend_interface
   }
 
   qnn_interface_providers_func get_interface_providers = nullptr;
-  get_interface_providers
-  = resolve_symbol<qnn_interface_providers_func>(lib_backend_handle, "QnnInterface_getProviders");
+  get_interface_providers =
+      resolve_symbol<qnn_interface_providers_func>(lib_backend_handle, "QnnInterface_getProviders");
 
   if (nullptr == get_interface_providers) {
     return false;
   }
 
-  QnnInterface_t** interface_providers = nullptr;
+  QnnInterface_t ** interface_providers = nullptr;
   uint32_t num_providers = 0;
-  if (QNN_SUCCESS
-      != get_interface_providers((const QnnInterface_t***)&interface_providers, &num_providers)) {
+  if (QNN_SUCCESS !=
+      get_interface_providers((const QnnInterface_t ***)&interface_providers, &num_providers)) {
     QRB_ERROR("Failed to get interface providers!");
     return false;
   }
@@ -123,7 +113,7 @@ bool QnnInterface::init_qnn_backend_interface
     return false;
   }
 
-  bool found_valid_interface{false};
+  bool found_valid_interface{ false };
   for (size_t i = 0; i < num_providers; i++) {
     if (QNN_API_VERSION_MAJOR == interface_providers[i]->apiVersion.coreApiVersion.major &&
         QNN_API_VERSION_MINOR <= interface_providers[i]->apiVersion.coreApiVersion.minor) {
@@ -146,13 +136,9 @@ bool QnnInterface::init_qnn_backend_interface
 /// @param model_path
 /// @param model_handle pointer point to qnn interface
 /// @return true or false
-bool QnnInterface::init_qnn_graph_interface
-(
-  const std::string &model_path,
-  void** model_handle
-)
+bool QnnInterface::init_qnn_graph_interface(const std::string & model_path, void ** model_handle)
 {
-  void* lib_model_handle = dlopen_helper(model_path.c_str(), 0x0001 | 0x0002);
+  void * lib_model_handle = dlopen_helper(model_path.c_str(), 0x0001 | 0x0002);
 
   if (nullptr == lib_model_handle) {
     QRB_ERROR("Unable to load model!");
@@ -164,15 +150,15 @@ bool QnnInterface::init_qnn_graph_interface
   }
 
   std::string model_prepare_func = "QnnModel_composeGraphs";
-  this->compose_graphs
-  = resolve_symbol<compose_graphs_func>(lib_model_handle, model_prepare_func.c_str());
+  this->compose_graphs =
+      resolve_symbol<compose_graphs_func>(lib_model_handle, model_prepare_func.c_str());
   if (nullptr == this->compose_graphs) {
     return false;
   }
 
   std::string model_free_func = "QnnModel_freeGraphsInfo";
-  this->free_graph_info
-  = resolve_symbol<free_graph_info_func>(lib_model_handle, model_free_func.c_str());
+  this->free_graph_info =
+      resolve_symbol<free_graph_info_func>(lib_model_handle, model_free_func.c_str());
   if (nullptr == this->free_graph_info) {
     return false;
   }
@@ -184,13 +170,10 @@ bool QnnInterface::init_qnn_graph_interface
 /// @param qnn_syslib_path file path of libQnnSystem.so
 /// @param sys_lib_handle pointer point to qnn system interface
 /// @return true of false
-bool QnnInterface::init_qnn_system_interface
-(
-  const std::string &qnn_syslib_path,
-  void** sys_lib_handle
-)
+bool QnnInterface::init_qnn_system_interface(const std::string & qnn_syslib_path,
+    void ** sys_lib_handle)
 {
-  void* lib_sys_handle = dlopen_helper(qnn_syslib_path.c_str(), 0x0001 | 0x0002);
+  void * lib_sys_handle = dlopen_helper(qnn_syslib_path.c_str(), 0x0001 | 0x0002);
   if (nullptr == lib_sys_handle) {
     QRB_ERROR("Unable to load system library!");
     return false;
@@ -201,18 +184,17 @@ bool QnnInterface::init_qnn_system_interface
   }
 
   qnn_sys_interface_providers_func get_sys_interface_providers = nullptr;
-  get_sys_interface_providers
-  = resolve_symbol<qnn_sys_interface_providers_func>(lib_sys_handle,
-                                                     "QnnSystemInterface_getProviders");
+  get_sys_interface_providers = resolve_symbol<qnn_sys_interface_providers_func>(
+      lib_sys_handle, "QnnSystemInterface_getProviders");
   if (nullptr == get_sys_interface_providers) {
     return false;
   }
 
-  QnnSystemInterface_t** sys_interface_providers = nullptr;
+  QnnSystemInterface_t ** sys_interface_providers = nullptr;
   uint32_t number_of_providers = 0;
-  if (QNN_SUCCESS
-      != get_sys_interface_providers((const QnnSystemInterface_t***)&sys_interface_providers,
-                                     &number_of_providers)) {
+  if (QNN_SUCCESS !=
+      get_sys_interface_providers(
+          (const QnnSystemInterface_t ***)&sys_interface_providers, &number_of_providers)) {
     QRB_ERROR("Failed to get system interface providers.");
     return false;
   }
@@ -239,11 +221,9 @@ bool QnnInterface::init_qnn_system_interface
   return true;
 }
 
-QnnTensor::QnnTensor(uint32_t num_of_input_tensors, uint32_t num_of_output_tensors):
-num_of_input_tensors(num_of_input_tensors),
-num_of_output_tensors(num_of_output_tensors)
+QnnTensor::QnnTensor(uint32_t num_of_input_tensors, uint32_t num_of_output_tensors)
+  : num_of_input_tensors(num_of_input_tensors), num_of_output_tensors(num_of_output_tensors)
 {
-
 }
 
 QnnTensor::~QnnTensor()
@@ -257,46 +237,43 @@ QnnTensor::~QnnTensor()
 /// @param tensor_cnt number of tensor
 /// @param tensor_src
 /// @return SUCCESS or FAILURE
-StatusCode QnnTensor::setup_tensors
-(
-  Qnn_Tensor_t*& tensor,
-  const uint32_t tensor_cnt,
-  const Qnn_Tensor_t* tensor_src
-)
+StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
+    const uint32_t tensor_cnt,
+    const Qnn_Tensor_t * tensor_src)
 {
-  if(tensor_src == nullptr || tensor_cnt == 0) {
+  if (tensor_src == nullptr || tensor_cnt == 0) {
     return StatusCode::FAILURE;
   }
 
-  tensor = (Qnn_Tensor_t*)calloc(1, tensor_cnt * sizeof(Qnn_Tensor_t));
-  if(tensor == nullptr) {
+  tensor = (Qnn_Tensor_t *)calloc(1, tensor_cnt * sizeof(Qnn_Tensor_t));
+  if (tensor == nullptr) {
     QRB_ERROR("calloc tensor failed!");
     return StatusCode::FAILURE;
   }
 
-  for(size_t i = 0; i < tensor_cnt; i++) {
-    const Qnn_Tensor_t& tensor_src_tmp = tensor_src[i];
+  for (size_t i = 0; i < tensor_cnt; i++) {
+    const Qnn_Tensor_t & tensor_src_tmp = tensor_src[i];
 
     std::vector<size_t> tensor_shape = get_tensor_shape(&tensor_src_tmp);
-    if(tensor_shape.size() == 0) {
+    if (tensor_shape.size() == 0) {
       return StatusCode::FAILURE;
     }
 
     tensor[i] = QNN_TENSOR_INIT;
-    if(StatusCode::SUCCESS != tensor_info_deep_copy(tensor+i, &tensor_src_tmp)) {
+    if (StatusCode::SUCCESS != tensor_info_deep_copy(tensor + i, &tensor_src_tmp)) {
       return StatusCode::FAILURE;
     }
 
-    set_tensor_mem_type(tensor+i, QNN_TENSORMEMTYPE_RAW);
+    set_tensor_mem_type(tensor + i, QNN_TENSORMEMTYPE_RAW);
 
     Qnn_ClientBuffer_t tensor_buf = QNN_CLIENT_BUFFER_INIT;
 
-    if(StatusCode::SUCCESS != allocate_tensor_buf(tensor_buf.data, tensor_shape)) {
+    if (StatusCode::SUCCESS != allocate_tensor_buf(tensor_buf.data, tensor_shape)) {
       return StatusCode::FAILURE;
     }
-    tensor_buf.dataSize = get_tensor_size(tensor+i, tensor_shape);
+    tensor_buf.dataSize = get_tensor_size(tensor + i, tensor_shape);
 
-    set_tensor_client_buf(tensor+i, tensor_buf);
+    set_tensor_client_buf(tensor + i, tensor_buf);
   }
 
   return StatusCode::SUCCESS;
@@ -305,9 +282,9 @@ StatusCode QnnTensor::setup_tensors
 /// @brief fill input_data into input tensor for inference
 /// @param input_data
 /// @return SUCCESS or FAILURE
-StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> &input_data)
+StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_data)
 {
-  if((inputs == nullptr) || (get_tensor_dimensions(inputs) == nullptr)) {
+  if ((inputs == nullptr) || (get_tensor_dimensions(inputs) == nullptr)) {
     return StatusCode::FAILURE;
   }
 
@@ -316,21 +293,19 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> &input_data
     shape.emplace_back(get_tensor_dimensions(inputs)[i]);
   }
 
-  if(get_tensor_data_type(inputs) == QNN_DATATYPE_FLOAT_32) { // now only support FLOAT32
+  if (get_tensor_data_type(inputs) == QNN_DATATYPE_FLOAT_32) {  // now only support FLOAT32
     size_t tensor_size = get_tensor_size(inputs, shape);
 
-    if(tensor_size != input_data.size()) {
-      QRB_ERROR("The size of input tensor should be %u byte, but receive %u byte",
-                 tensor_size, input_data.size());
+    if (tensor_size != input_data.size()) {
+      QRB_ERROR("The size of input tensor should be %u byte, but receive %u byte", tensor_size,
+          input_data.size());
       return StatusCode::FAILURE;
     }
 
     // get_tensor_client_buf(input).data is const and can not point to input_tensor_data directly
-    memcpy(static_cast<char*>(get_tensor_client_buf(inputs).data),
-                              input_data.data(),
-                              input_data.size());
-  }
-  else {
+    memcpy(static_cast<char *>(get_tensor_client_buf(inputs).data), input_data.data(),
+        input_data.size());
+  } else {
     QRB_ERROR("Input tensor data type not support!");
     return StatusCode::FAILURE;
   }
@@ -345,7 +320,7 @@ std::vector<OutputTensor> QnnTensor::read_output_tensors(const uint32_t number_o
 {
   auto res = std::vector<OutputTensor>(number_of_outputs);
 
-  if(nullptr == outputs) {
+  if (nullptr == outputs) {
     return std::vector<OutputTensor>();
   }
 
@@ -357,15 +332,14 @@ std::vector<OutputTensor> QnnTensor::read_output_tensors(const uint32_t number_o
       shape.emplace_back(get_tensor_dimensions(output)[i]);
     }
 
-    if(get_tensor_data_type(output) == QNN_DATATYPE_FLOAT_32) {
+    if (get_tensor_data_type(output) == QNN_DATATYPE_FLOAT_32) {
       size_t tensor_size = get_tensor_size(output, shape);
 
-      auto output_buf = static_cast<uint8_t*>(get_tensor_client_buf(output).data);
+      auto output_buf = static_cast<uint8_t *>(get_tensor_client_buf(output).data);
       res[i].output_tensor_data = std::vector<uint8_t>(output_buf, output_buf + tensor_size);
       res[i].output_tensor_name = get_tensor_name(output);
       res[i].output_tensor_shape = std::vector<uint32_t>(shape.begin(), shape.end());
-    }
-    else {
+    } else {
       QRB_ERROR("Input tensor data type not support!");
       return std::vector<OutputTensor>();
     }
@@ -377,20 +351,20 @@ std::vector<OutputTensor> QnnTensor::read_output_tensors(const uint32_t number_o
 /// @brief free qnn tensor: Qnn_Tensor_t
 /// @param tensors
 /// @param tensors_cnt number of tensors
-void QnnTensor::free_qnn_tensors(Qnn_Tensor_t* tensors, uint32_t tensors_cnt)
+void QnnTensor::free_qnn_tensors(Qnn_Tensor_t * tensors, uint32_t tensors_cnt)
 {
-  if(nullptr == tensors) {
+  if (nullptr == tensors) {
     return;
   }
 
-  auto check_and_free = [](auto& ptr){
-    if(ptr != nullptr) {
-      free((void*)ptr);
+  auto check_and_free = [](auto & ptr) {
+    if (ptr != nullptr) {
+      free((void *)ptr);
       ptr = nullptr;
     }
   };
 
-  for(size_t i = 0; i < tensors_cnt; i++) {
+  for (size_t i = 0; i < tensors_cnt; i++) {
     if (tensors[i].version == QNN_TENSOR_VERSION_1) {
       check_and_free(tensors[i].v1.dimensions);
       check_and_free(tensors[i].v1.name);
@@ -406,7 +380,7 @@ void QnnTensor::free_qnn_tensors(Qnn_Tensor_t* tensors, uint32_t tensors_cnt)
 /// @param dst
 /// @param src
 /// @return SUCCESS or FAILURE
-StatusCode QnnTensor::tensor_info_deep_copy(Qnn_Tensor_t* dst, const Qnn_Tensor_t* src)
+StatusCode QnnTensor::tensor_info_deep_copy(Qnn_Tensor_t * dst, const Qnn_Tensor_t * src)
 {
   if (nullptr == dst || nullptr == src) {
     return StatusCode::FAILURE;
@@ -416,13 +390,12 @@ StatusCode QnnTensor::tensor_info_deep_copy(Qnn_Tensor_t* dst, const Qnn_Tensor_
   // to correctly assign values
   dst->version = src->version;
 
-  if(const char* src_tensor_name = get_tensor_name(src); nullptr == src_tensor_name) {
+  if (const char * src_tensor_name = get_tensor_name(src); nullptr == src_tensor_name) {
     QRB_ERROR("Tensor name is nullptr, fail to set tensor name!");
     return StatusCode::FAILURE;
-  }
-  else {
-    char* temp_name = (char*)malloc(sizeof(char) * (1 + strlen(src_tensor_name)));
-    if(nullptr == temp_name) {
+  } else {
+    char * temp_name = (char *)malloc(sizeof(char) * (1 + strlen(src_tensor_name)));
+    if (nullptr == temp_name) {
       return StatusCode::FAILURE;
     }
     memcpy(temp_name, src_tensor_name, strlen(src_tensor_name));
@@ -441,27 +414,25 @@ StatusCode QnnTensor::tensor_info_deep_copy(Qnn_Tensor_t* dst, const Qnn_Tensor_
   dst_param.encodingDefinition = src_param.encodingDefinition;
   dst_param.quantizationEncoding = QNN_QUANTIZATION_ENCODING_UNDEFINED;
 
-  if(src_param.quantizationEncoding == QNN_QUANTIZATION_ENCODING_SCALE_OFFSET) {
+  if (src_param.quantizationEncoding == QNN_QUANTIZATION_ENCODING_SCALE_OFFSET) {
     dst_param.quantizationEncoding = src_param.quantizationEncoding;
     dst_param.scaleOffsetEncoding = src_param.scaleOffsetEncoding;
-  }
-  else if(src_param.quantizationEncoding == QNN_QUANTIZATION_ENCODING_AXIS_SCALE_OFFSET) {
+  } else if (src_param.quantizationEncoding == QNN_QUANTIZATION_ENCODING_AXIS_SCALE_OFFSET) {
     dst_param.quantizationEncoding = src_param.quantizationEncoding;
     dst_param.axisScaleOffsetEncoding.axis = src_param.axisScaleOffsetEncoding.axis;
-    dst_param.axisScaleOffsetEncoding.numScaleOffsets
-    = src_param.axisScaleOffsetEncoding.numScaleOffsets;
+    dst_param.axisScaleOffsetEncoding.numScaleOffsets =
+        src_param.axisScaleOffsetEncoding.numScaleOffsets;
 
     if (src_param.axisScaleOffsetEncoding.numScaleOffsets > 0) {
-      dst_param.axisScaleOffsetEncoding.scaleOffset
-      = (Qnn_ScaleOffset_t *)malloc(src_param.axisScaleOffsetEncoding.numScaleOffsets
-                                    *sizeof(Qnn_ScaleOffset_t));
+      dst_param.axisScaleOffsetEncoding.scaleOffset = (Qnn_ScaleOffset_t *)malloc(
+          src_param.axisScaleOffsetEncoding.numScaleOffsets * sizeof(Qnn_ScaleOffset_t));
 
-      if(dst_param.axisScaleOffsetEncoding.scaleOffset) {
+      if (dst_param.axisScaleOffsetEncoding.scaleOffset) {
         for (size_t idx = 0; idx < src_param.axisScaleOffsetEncoding.numScaleOffsets; idx++) {
-          dst_param.axisScaleOffsetEncoding.scaleOffset[idx].scale
-          = src_param.axisScaleOffsetEncoding.scaleOffset[idx].scale;
-          dst_param.axisScaleOffsetEncoding.scaleOffset[idx].offset
-          = src_param.axisScaleOffsetEncoding.scaleOffset[idx].offset;
+          dst_param.axisScaleOffsetEncoding.scaleOffset[idx].scale =
+              src_param.axisScaleOffsetEncoding.scaleOffset[idx].scale;
+          dst_param.axisScaleOffsetEncoding.scaleOffset[idx].offset =
+              src_param.axisScaleOffsetEncoding.scaleOffset[idx].offset;
         }
       }
     }
@@ -471,21 +442,18 @@ StatusCode QnnTensor::tensor_info_deep_copy(Qnn_Tensor_t* dst, const Qnn_Tensor_
   set_tensor_rank(dst, get_tensor_rank(src));
   set_tensor_dimensions(dst, nullptr);
 
-  if(get_tensor_rank(src) > 0) {
-    set_tensor_dimensions(dst, (uint32_t*)malloc(get_tensor_rank(src) * sizeof(uint32_t)));
+  if (get_tensor_rank(src) > 0) {
+    set_tensor_dimensions(dst, (uint32_t *)malloc(get_tensor_rank(src) * sizeof(uint32_t)));
     if (get_tensor_dimensions(dst)) {
-      if(get_tensor_dimensions(dst) == nullptr || get_tensor_dimensions(src) == nullptr) {
+      if (get_tensor_dimensions(dst) == nullptr || get_tensor_dimensions(src) == nullptr) {
         return StatusCode::FAILURE;
       }
-      memcpy(get_tensor_dimensions(dst),
-             get_tensor_dimensions(src),
-             get_tensor_rank(src)*sizeof(uint32_t));
-    }
-    else {
+      memcpy(get_tensor_dimensions(dst), get_tensor_dimensions(src),
+          get_tensor_rank(src) * sizeof(uint32_t));
+    } else {
       return StatusCode::FAILURE;
     }
-  }
-  else {
+  } else {
     return StatusCode::FAILURE;
   }
 
@@ -495,12 +463,12 @@ StatusCode QnnTensor::tensor_info_deep_copy(Qnn_Tensor_t* dst, const Qnn_Tensor_
 /// @brief get the shape of tensor
 /// @param tensor
 /// @return shape of tensor
-std::vector<size_t> QnnTensor::get_tensor_shape(const Qnn_Tensor_t* tensor)
+std::vector<size_t> QnnTensor::get_tensor_shape(const Qnn_Tensor_t * tensor)
 {
-  uint32_t* dimensions = get_tensor_dimensions(tensor);
+  uint32_t * dimensions = get_tensor_dimensions(tensor);
   uint32_t rank = get_tensor_rank(tensor);
 
-  if(dimensions == nullptr) {
+  if (dimensions == nullptr) {
     return std::vector<size_t>();
   }
 
@@ -516,11 +484,11 @@ std::vector<size_t> QnnTensor::get_tensor_shape(const Qnn_Tensor_t* tensor)
 /// @param tensor
 /// @param shape shape of tensor
 /// @return data size of tensor
-uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t* tensor, const std::vector<size_t> shape)
+uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vector<size_t> shape)
 {
   size_t element_cnt = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<size_t>());
 
-  if(get_tensor_data_type(tensor) != QNN_DATATYPE_FLOAT_32) {
+  if (get_tensor_data_type(tensor) != QNN_DATATYPE_FLOAT_32) {
     QRB_WARNING("Input data type is not suppport!");
   }
 
@@ -531,152 +499,140 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t* tensor, const std::vecto
 /// @param data pointer point to tensor data buffer
 /// @param shape shape of tensor
 /// @return SUCCESS or FAILURE
-StatusCode QnnTensor::allocate_tensor_buf
-(
-  void*& data,
-  const std::vector<size_t> shape
-)
+StatusCode QnnTensor::allocate_tensor_buf(void *& data, const std::vector<size_t> shape)
 {
   size_t element_cnt = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<size_t>());
-  data = (float*)malloc(element_cnt * sizeof(float)); // default is float
+  data = (float *)malloc(element_cnt * sizeof(float));  // default is float
 
-  if(data == nullptr) {
+  if (data == nullptr) {
     return StatusCode::FAILURE;
   }
   return StatusCode::SUCCESS;
 }
 
-void QnnTensor::check_tensor_version(const Qnn_Tensor_t* tensor)
+void QnnTensor::check_tensor_version(const Qnn_Tensor_t * tensor)
 {
   if (tensor->version != QNN_TENSOR_VERSION_1) {
     QRB_WARNING("Version of tensor is NOT QNN_TENSOR_VERSION_1");
   }
 }
 
-inline void QnnTensor::set_tensor_id(Qnn_Tensor_t* tensor, const uint32_t id)
+inline void QnnTensor::set_tensor_id(Qnn_Tensor_t * tensor, const uint32_t id)
 {
   check_tensor_version(tensor);
   tensor->v1.id = id;
 }
 
-inline void QnnTensor::set_tensor_type(Qnn_Tensor_t* tensor, const Qnn_TensorType_t type)
+inline void QnnTensor::set_tensor_type(Qnn_Tensor_t * tensor, const Qnn_TensorType_t type)
 {
   check_tensor_version(tensor);
   tensor->v1.type = type;
 }
 
-inline void QnnTensor::set_tensor_data_format
-(
-  Qnn_Tensor_t* tensor,
-  const Qnn_TensorDataFormat_t format
-)
+inline void QnnTensor::set_tensor_data_format(Qnn_Tensor_t * tensor,
+    const Qnn_TensorDataFormat_t format)
 {
   check_tensor_version(tensor);
   tensor->v1.dataFormat = format;
 }
 
-inline void QnnTensor::set_tensor_data_type(Qnn_Tensor_t* tensor, const Qnn_DataType_t data_type)
+inline void QnnTensor::set_tensor_data_type(Qnn_Tensor_t * tensor, const Qnn_DataType_t data_type)
 {
   check_tensor_version(tensor);
   tensor->v1.dataType = data_type;
 }
 
-inline void QnnTensor::set_tensor_quant_params
-(
-  Qnn_Tensor_t* tensor,
-  const Qnn_QuantizeParams_t params
-)
+inline void QnnTensor::set_tensor_quant_params(Qnn_Tensor_t * tensor,
+    const Qnn_QuantizeParams_t params)
 {
   check_tensor_version(tensor);
   tensor->v1.quantizeParams = params;
 }
 
-inline void QnnTensor::set_tensor_rank(Qnn_Tensor_t* tensor, const uint32_t rank)
+inline void QnnTensor::set_tensor_rank(Qnn_Tensor_t * tensor, const uint32_t rank)
 {
   check_tensor_version(tensor);
   tensor->v1.rank = rank;
 }
 
-inline void QnnTensor::set_tensor_dimensions(Qnn_Tensor_t* tensor, uint32_t* dims)
+inline void QnnTensor::set_tensor_dimensions(Qnn_Tensor_t * tensor, uint32_t * dims)
 {
   check_tensor_version(tensor);
   tensor->v1.dimensions = dims;
 }
 
-inline void QnnTensor::set_tensor_name(Qnn_Tensor_t* tensor, const char* name)
+inline void QnnTensor::set_tensor_name(Qnn_Tensor_t * tensor, const char * name)
 {
   check_tensor_version(tensor);
   tensor->v1.name = name;
 }
 
-inline void QnnTensor::set_tensor_mem_type(Qnn_Tensor_t* tensor, const Qnn_TensorMemType_t mem_type)
+inline void QnnTensor::set_tensor_mem_type(Qnn_Tensor_t * tensor,
+    const Qnn_TensorMemType_t mem_type)
 {
   check_tensor_version(tensor);
   tensor->v1.memType = mem_type;
 }
 
-inline void QnnTensor::set_tensor_client_buf
-(
-  Qnn_Tensor_t* tensor,
-  const Qnn_ClientBuffer_t client_buf
-)
+inline void QnnTensor::set_tensor_client_buf(Qnn_Tensor_t * tensor,
+    const Qnn_ClientBuffer_t client_buf)
 {
   check_tensor_version(tensor);
   tensor->v1.clientBuf = client_buf;
 }
 
-inline uint32_t QnnTensor::get_tensor_id(const Qnn_Tensor_t* tensor)
+inline uint32_t QnnTensor::get_tensor_id(const Qnn_Tensor_t * tensor)
 {
   check_tensor_version(tensor);
   return tensor->v1.id;
 }
 
-inline uint32_t* QnnTensor::get_tensor_dimensions(const Qnn_Tensor_t* tensor)
+inline uint32_t * QnnTensor::get_tensor_dimensions(const Qnn_Tensor_t * tensor)
 {
   check_tensor_version(tensor);
   return tensor->v1.dimensions;
 }
 
-inline uint32_t QnnTensor::get_tensor_rank(const Qnn_Tensor_t* tensor)
+inline uint32_t QnnTensor::get_tensor_rank(const Qnn_Tensor_t * tensor)
 {
   check_tensor_version(tensor);
   return tensor->v1.rank;
 }
 
-inline const char* QnnTensor::get_tensor_name(const Qnn_Tensor_t* tensor)
+inline const char * QnnTensor::get_tensor_name(const Qnn_Tensor_t * tensor)
 {
   check_tensor_version(tensor);
   return tensor->v1.name;
 }
 
-inline Qnn_TensorType_t QnnTensor::get_tensor_type(const Qnn_Tensor_t* tensor)
+inline Qnn_TensorType_t QnnTensor::get_tensor_type(const Qnn_Tensor_t * tensor)
 {
   check_tensor_version(tensor);
   return tensor->v1.type;
 }
 
-inline Qnn_TensorDataFormat_t QnnTensor::get_tensor_data_format(const Qnn_Tensor_t* tensor)
+inline Qnn_TensorDataFormat_t QnnTensor::get_tensor_data_format(const Qnn_Tensor_t * tensor)
 {
   check_tensor_version(tensor);
   return tensor->v1.dataFormat;
 }
 
-inline Qnn_DataType_t QnnTensor::get_tensor_data_type(const Qnn_Tensor_t* tensor)
+inline Qnn_DataType_t QnnTensor::get_tensor_data_type(const Qnn_Tensor_t * tensor)
 {
   check_tensor_version(tensor);
   return tensor->v1.dataType;
 }
 
-inline Qnn_QuantizeParams_t QnnTensor::get_tensor_quant_params(const Qnn_Tensor_t* tensor)
+inline Qnn_QuantizeParams_t QnnTensor::get_tensor_quant_params(const Qnn_Tensor_t * tensor)
 {
   check_tensor_version(tensor);
   return tensor->v1.quantizeParams;
 }
 
-inline Qnn_ClientBuffer_t QnnTensor::get_tensor_client_buf(const Qnn_Tensor_t* tensor)
+inline Qnn_ClientBuffer_t QnnTensor::get_tensor_client_buf(const Qnn_Tensor_t * tensor)
 {
   check_tensor_version(tensor);
   return tensor->v1.clientBuf;
 }
 
-} // namespace qrb::inference_mgr
+}  // namespace qrb::inference_mgr
