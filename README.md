@@ -10,83 +10,113 @@ offers hardware acceleration based on Qualcomm platforms, utilizing pre-trained 
 - Version of TFLite should be higher than 2.11.1
 - ROS 2 Humble and later.
 
-## Quickstart
+## QuickStart
 
-> qrb_ros_nn_inference node is for model inference, it can not run alone
->
-> User need to prepare pre-process node for provideing input data for model inference and post-process node for prase the model output
+### 1. Create your ROS2 workspace for QRB ROS
 
-### Build
+```bash
+adb root;adb shell "mkdir -p /home/qrb_ros_ws/src"
+```
 
-1. Set up the cross-compile environment, follow the [first two steps](https://docs.qualcomm.com/bundle/publicresource/topics/80-65220-2/download-the-prebuilt-robotics-image_3_1.html) to download the qirp-sdk.
+### 2. Download the qrb_ros_docker and push to your device
 
-2. Create `ros_ws` directory in `<qirp_decompressed_workspace>/qirp-sdk/`
+```bash
+git clone https://github.com/quic-qrb-ros/qrb_ros_nn_inference
+```
 
-3. Clone your pre-process node and post-process node under `<qirp_decompressed_workspace>/qirp-sdk/ros_ws`
+```bash
+adb push qrb_ros_nn_inference /home/qrb_ros_ws/src/
+```
 
-   ```bash
-   cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws && \
-   git clone https://github.com/my_github/pre-process_node.git && \
-   git clone https://github.com/my_github/post-process_node.git
+### 3. Build and Launch the Docker container on your device
+
+```bash
+adb shell
+```
+
+```bash
+cd /home/qrb_ros_ws/src/qrb_ros_nn_inference/docker && \
+bash qrb_ros_run.sh
+```
+
+### 4. Clone the QRB_ROS repository in docker container
+
+```bash
+export QRB_ROS_WS=/workspace/qrb_ros_ws && \
+cd ${QRB_ROS_WS}/src && \
+git clone https://github.com/quic-qrb-ros/qrb_ros_nn_inference && \
+git clone https://github.com/quic-qrb-ros/qrb_ros_tensor_list_msgs
+```
+
+### 5. Build qrb_ros_nn_inference
+
+```bash
+cd ${QRB_ROS_WS}/ && \
+colcon build --packages-up-to qrb_ros_nn_inference
+```
+
+### 5. Test qrb_ros_nn_inference with YOLOv8 detection model
+
+1. [download model](https://aihub.qualcomm.com/iot/models/yolov8_det?domain=Computer+Vision&useCase=Object+Detection)
+
+2. download the test image for object detecion
+
+   ```
+   wget -O \
+   ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/image.jpg \
+   https://ultralytics.com/images/bus.jpg
    ```
 
-4. Clone this repository and dependencies under `<qirp_decompressed_workspace>/qirp-sdk/ros_ws`
+3. point out the image path and model path in ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/launch/nn_node_test.launch.py
 
-   ```bash
-   cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws && \
-   git clone https://github.com/quic-qrb-ros/qrb_ros_tensor_list_msgs.git && \
-   git clone https://github.com/quic-qrb-ros/qrb_ros_nn_inference.git
+   ```python
+       pre_process_node = ComposableNode(
+           package = "qrb_ros_pre_process",
+           plugin = "qrb_ros::pre_process::QrbRosPreProcessNode",
+           name = "pre_process_node",
+           parameters=[
+             {
+               "image_path": "/path/to/image" # point out the path to image
+             }
+           ]
+       )
+
+       nn_inference_node = ComposableNode(
+           package = "qrb_ros_nn_inference",
+           plugin = "qrb_ros::nn_inference::QrbRosInferenceNode",
+           name = "nn_inference_node",
+           parameters=[
+             {
+               "backend_option": "",
+               "model_path": "/path/to/model" # point out the path to model
+             }
+           ]
+       )
    ```
 
-5. download the qnn sdk
+4. build the pre and post process packages
 
    ```bash
-   mkdir -p /opt/QnnSDK && \
-   wget -P /opt/QnnSDK https://softwarecenter.qualcomm.com/api/download/software/qualcomm_neural_processing_sdk/v2.22.10.240618.zip && \
-   unzip v2.22.10.240618.zip -d /opt/QnnSDK
+   cd ${QRB_ROS_WS}/ && \
+   colcon build --symlink-install --packages-select qrb_ros_pre_process qrb_ros_post_process
    ```
 
-6. build your pipeline
+5. execute the inference
 
    ```bash
-   export AMENT_PREFIX_PATH="${OECORE_TARGET_SYSROOT}/usr;${OECORE_NATIVE_SYSROOT}/usr"
-   export PYTHONPATH=${PYTHONPATH}:${OECORE_TARGET_SYSROOT}/usr/lib/python3.10/site-packages
-
-   colcon build --merge-install --cmake-args \
-     -DPython3_ROOT_DIR=${OECORE_TARGET_SYSROOT}/usr \
-     -DPython3_NumPy_INCLUDE_DIR=${OECORE_TARGET_SYSROOT}/usr/lib/python3.10/site-packages/numpy/core/include \
-     -DPYTHON_SOABI=cpython-310-aarch64-linux-gnu -DCMAKE_STAGING_PREFIX=$(pwd)/install \
-     -DCMAKE_PREFIX_PATH=$(pwd)/install/share \
-     -DBUILD_TESTING=OFF
+   cd ${QRB_ROS_WS}/ && \
+   source install/local_setup.bash && \
+   ros2 launch qrb_ros_post_process nn_node_test.launch.py
    ```
 
-7. Push to the device & Install
+6. visualize the detection result
 
    ```bash
-   cd `<qirp_decompressed_workspace>/qirp-sdk/ros_ws/install`
-   tar czvf qrb_ros_nn_inference.tar.gz lib share
-   scp qrb_ros_nn_inferenceu.tar.gz root@[ip-addr]:/opt/
-   ssh root@[ip-addr]
-   (ssh) tar -zxf /opt/qrb_ros_nn_inference.tar.gz -C /opt/qcom/qirp-sdk/usr/
+   python3 ./src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/qrb_ros_yolo_detection_visualizer.py \
+   --original_image ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/image.jpg
    ```
 
-### Run
-
-1. Source this file to set up the environment on your device:
-
-   ```bash
-   ssh root@[ip-addr]
-   (ssh) export HOME=/opt
-   (ssh) source /opt/qcom/qirp-sdk/qirp-setup.sh
-   (ssh) export ROS_DOMAIN_ID=xx
-   (ssh) source /usr/bin/ros_setup.bash
-   ```
-
-2. use launch file to run your inference pipeline
-
-   ```bash
-   (ssh) ros2 launch ${package_name} ${launch-file}
-   ```
+   reulst image will be stroed in `${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result`
 
 ## Resources
 
