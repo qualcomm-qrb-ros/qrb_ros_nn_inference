@@ -35,8 +35,9 @@ adb shell
 ```
 
 ```bash
-cd /home/qrb_ros_ws/src/qrb_ros_nn_inference/docker && \
-bash qrb_ros_run.sh
+cd /home/qrb_ros_ws/src/qrb_ros_nn_inference/docker/scripts && \
+bash docker_build.sh && \
+bash docker_run.sh
 ```
 
 ### 4. Clone the QRB_ROS repository in docker container
@@ -55,7 +56,7 @@ cd ${QRB_ROS_WS}/ && \
 colcon build --packages-up-to qrb_ros_nn_inference
 ```
 
-### 5. Test qrb_ros_nn_inference with YOLOv8 detection model
+### 6. Test qrb_ros_nn_inference with YOLOv8 detection model
 
 1. [download model](https://aihub.qualcomm.com/iot/models/yolov8_det?domain=Computer+Vision&useCase=Object+Detection)
 
