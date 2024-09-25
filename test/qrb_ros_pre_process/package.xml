@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>qrb_ros_pre_process</name>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   <description>Pre-process for qrb_ros_nn_inference</description>
   <maintainer email="quic_nasong@quicinc.com">Na Song</maintainer>
   <license>BSD-3-Clause-Clear</license>
