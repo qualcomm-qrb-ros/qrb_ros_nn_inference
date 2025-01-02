@@ -4,8 +4,9 @@
 #ifndef QRB_INFERENCE_MANAGER_QNN_DELEGATE_INFERENCE_HPP_
 #define QRB_INFERENCE_MANAGER_QNN_DELEGATE_INFERENCE_HPP_
 
-#include <tensorflow/lite/interpreter.h>
-#include <tensorflow/lite/model.h>
+#include <tensorflow/lite/c/c_api.h>
+#include <tensorflow/lite/c/c_api_experimental.h>
+#include <tensorflow/lite/c/common.h>
 
 #include <string>
 
@@ -28,8 +29,10 @@ private:
   const std::string model_path_;
   const std::string backend_option_ = "";
   std::vector<OutputTensor> output_tensor_;
-  std::unique_ptr<tflite::FlatBufferModel> model_{ nullptr };
-  std::unique_ptr<tflite::Interpreter> interpreter_;
+
+  TfLiteModel * model_ = nullptr;
+  TfLiteInterpreterOptions * options_ = nullptr;
+  TfLiteInterpreter * interpreter_ = nullptr;
   TfLiteDelegate * delegate_ = nullptr;
 
   StatusCode register_qnn_delegate();

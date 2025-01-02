@@ -7,8 +7,6 @@
 
 ## 0.1.0 (2024-08-26)
 
-Version 0.1.0 update:
-
 - clean up all dependency of QnnSampleApp
 - clean up the function of InferenceFromFile
 - add the support of bin-format model
@@ -16,8 +14,12 @@ Version 0.1.0 update:
 
 ## 0.1.1 (2024-11-13)
 
-Version 0.1.1 update:
-
 - optimize the setup of io tenosrs
 - optimize the parameters of QrbInferenceManager()
+- Contributors👉 Na Song
+
+## 0.2.0 (2025-01-02)
+
+- optimize the compiling process of tensorflow-lite
+- qnn_delegate_inference use tensorflow-lit C API
 - Contributors👉 Na Song

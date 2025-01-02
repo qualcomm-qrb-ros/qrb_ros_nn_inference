@@ -1,9 +1,8 @@
 // Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
-
 #include "qnn_delegate_inference/qnn_delegate_inference.hpp"
 
-#include <tensorflow/lite/kernels/register.h>
+#include <cstring>
 
 #include "TFLiteDelegate/QnnTFLiteDelegate.h"
 
@@ -19,6 +18,18 @@ QnnDelegateInference::QnnDelegateInference(const std::string & model_path,
 
 QnnDelegateInference::~QnnDelegateInference()
 {
+  if (this->interpreter_ != nullptr) {
+    TfLiteInterpreterDelete(interpreter_);
+  }
+
+  if (this->options_ != nullptr) {
+    TfLiteInterpreterOptionsDelete(options_);
+  }
+
+  if (this->model_ != nullptr) {
+    TfLiteModelDelete(model_);
+  }
+
   if (this->delegate_ != nullptr) {
     TfLiteQnnDelegateDelete(this->delegate_);
   }
@@ -47,11 +58,6 @@ StatusCode QnnDelegateInference::register_qnn_delegate()
       QRB_ERROR("Qnn Delegate create fail!");
       return StatusCode::FAILURE;
     }
-
-    if (TfLiteStatus::kTfLiteOk != this->interpreter_->ModifyGraphWithDelegate(this->delegate_)) {
-      QRB_ERROR("Qnn Delegate register fail!");
-      return StatusCode::FAILURE;
-    }
   }
 
   return StatusCode::SUCCESS;
@@ -59,23 +65,17 @@ StatusCode QnnDelegateInference::register_qnn_delegate()
 
 StatusCode QnnDelegateInference::inference_init()
 {
-  this->model_ = tflite::FlatBufferModel::BuildFromFile((this->model_path_).c_str());
-  if (this->model_ == nullptr) {
-    QRB_ERROR("TFLite model load fail!");
-    return StatusCode::FAILURE;
-  }
+  model_ = TfLiteModelCreateFromFile(model_path_.c_str());
+  // judge failure
 
-  tflite::ops::builtin::BuiltinOpResolver resolver;
-  tflite::InterpreterBuilder(*(this->model_), resolver)(&(this->interpreter_));
-  if (this->interpreter_ == nullptr) {
-    QRB_ERROR("TFLite interpreter build fail!");
-    return StatusCode::FAILURE;
-  }
+  options_ = TfLiteInterpreterOptionsCreate();
+  TfLiteInterpreterOptionsAddDelegate(options_, delegate_);
+  TfLiteInterpreterOptionsSetNumThreads(options_, 4);
 
-  if (TfLiteStatus::kTfLiteOk != this->interpreter_->AllocateTensors()) {
-    QRB_ERROR("TFLite input tensor create fail!");
-    return StatusCode::FAILURE;
-  }
+  interpreter_ = TfLiteInterpreterCreate(model_, options_);
+  // judge failure
+
+  TfLiteInterpreterAllocateTensors(interpreter_);
 
   if (this->register_qnn_delegate() == StatusCode::FAILURE) {
     return StatusCode::FAILURE;
@@ -91,7 +91,7 @@ StatusCode QnnDelegateInference::inference_graph_init()
 
 StatusCode QnnDelegateInference::inference_execute(const std::vector<uint8_t> & input_tensor_data)
 {
-  auto input_tensor = this->interpreter_->tensor(this->interpreter_->inputs()[0]);
+  TfLiteTensor * input_tensor = TfLiteInterpreterGetInputTensor(interpreter_, 0);
 
   if (input_tensor->type != kTfLiteFloat32) {
     QRB_ERROR("The data type of input tensor need to be FLOAT32!");
@@ -104,15 +104,17 @@ StatusCode QnnDelegateInference::inference_execute(const std::vector<uint8_t> & 
     return StatusCode::FAILURE;
   }
 
-  memcpy(input_tensor->data.f, input_tensor_data.data(), input_tensor_data.size());
+  TfLiteTensorCopyFromBuffer(
+      input_tensor, input_tensor_data.data(), input_tensor_data.size() * sizeof(float));
 
-  if (TfLiteStatus::kTfLiteOk != this->interpreter_->Invoke()) {
+  if (TfLiteStatus::kTfLiteOk != TfLiteInterpreterInvoke(interpreter_)) {
     QRB_ERROR("TFLite invoke fail!");
     return StatusCode::FAILURE;
   }
 
-  for (size_t i = 0; i < this->interpreter_->outputs().size(); i++) {
-    auto result_tensor = this->interpreter_->output_tensor(i);
+  for (int32_t i = 0; i < TfLiteInterpreterGetOutputTensorCount(interpreter_); i++) {
+    const TfLiteTensor * result_tensor = TfLiteInterpreterGetOutputTensor(interpreter_, i);
+
     OutputTensor output_tensor;
 
     output_tensor.output_tensor_name = result_tensor->name;
