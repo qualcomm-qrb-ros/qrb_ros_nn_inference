@@ -13,9 +13,6 @@ namespace qrb::inference_mgr
 class QnnInference : public QrbInference
 {
 public:
-  QnnInference(const std::string & model_path,
-      const std::string & backend_option,
-      const std::string & qnn_syslib_path);
   QnnInference(const std::string & model_path, const std::string & backend_option);
   ~QnnInference();
   StatusCode inference_init() override;
@@ -26,7 +23,7 @@ public:
 private:
   const std::string model_path_;
   const std::string backend_option_;
-  const std::string qnn_syslib_path_;
+  const std::string qnn_syslib_path_ = "libQnnSystem.so";
   bool load_model_from_binary = false;
   void * backend_lib_handle = nullptr;
   void * sys_lib_handle_ = nullptr;
@@ -39,6 +36,7 @@ private:
   bool support_device = false;
   std::vector<OutputTensor> output_tensor_;
   std::unique_ptr<QnnInterface> qnn_interface_{ nullptr };
+  QnnTensor io_tensors_;
 
   StatusCode initialize_backend();
   StatusCode create_device();
