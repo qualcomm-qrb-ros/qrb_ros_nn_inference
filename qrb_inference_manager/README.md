@@ -1,20 +1,22 @@
-# 1. Introduction
+# Introduction
 
-qrb_inference_manager is a wrapper library for the QNN SDK.<br>
-qrb_inference_manager provides a simple and user-friendly interface, supporting **real-time** inference for models in so, tflite, and bin formats.
+![Static Badge](https://img.shields.io/badge/language-Cpp-green)
+![Static Badge](https://img.shields.io/badge/executor-CPU_GPU_HTP-orange)
 
-# 2. API Documentation
+qrb_inference_manager is a wrapper library of the QNN SDK and QNN Delegate SDK.<br>
+
+qrb_inference_manager provides a simple and user-friendly interface, supporting 🚀**real-time** inference for models in so, tflite, and bin formats.
+
+# API Documentation
 [Documentation](./Documentation.md)
 
-# 3. Dependency
+# Dependency
 
-> qrb_inference_manager is varified in Linux platform, the execution on the Windows platform cannot be guaranteed to succeed.
+### Cpp version
 
-### 3.0 C++ version
+qrb_inference_manager use the feature of C17, please ensure your Cpp environment meets requirements.
 
-qrb_inference_manager use the feature of C++17, please ensure your C++ environment meets requirements.
-
-### 3.1 QNN SDK
+### QNN SDK
 
 > the version of QNN SDK should ideally be greater than or equal to 2.24.1.240626
 
@@ -36,11 +38,11 @@ cp -R /opt/qcom/qnn_sdk_v${QNN_SDK_VER}/qairt/${QNN_SDK_VER}/include/QNN/* /usr/
 rm -rf /opt/qcom/qnn_sdk_v${QNN_SDK_VER} && \
 ```
 
-## 3.2 TensorFlow
+## TensorFlow
 
 > the version of TensorFlow should ideally be greater than or equal to 2.15.0
 
-download TensorFlow source code:
+download and build TensorFlow source code:
 
 ```bash
 git clone --branch v2.16.1 https://github.com/tensorflow/tensorflow.git /opt/tensorflow && \
@@ -51,9 +53,7 @@ cmake --build . -j8 && \
 cp ./libtensorflowlite_c.so /usr/local/lib
 ```
 
-# 4. Use qrb_inference_manager in your C++ project
-
-> Since TensorFlow will be compiled before compiling the qrb_inference_manager, the build time might be a bit long.
+# Use qrb_inference_manager in your C++ project
 
 add these lines in your CMakeLists.txt
 
