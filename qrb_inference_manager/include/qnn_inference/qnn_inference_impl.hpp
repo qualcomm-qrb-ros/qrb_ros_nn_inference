@@ -95,9 +95,11 @@ public:
   QNN_SYSTEM_INTERFACE_VER_TYPE qnn_system_interface;
 
 private:
-  void * dlopen_helper(const char * file_name, const int flags);
   template <class T>
-  inline T resolve_symbol(void * lib_handle, const char * sym);
+  inline T get_function_from_lib(const std::string & lib_name,
+      const int open_flag,
+      void ** lib_handle,
+      const char * func_name);
   bool init_qnn_backend_interface(const std::string & backend_option, void ** backend_handle);
   bool init_qnn_graph_interface(const std::string & model_path, void ** model_handle);
   bool init_qnn_system_interface(const std::string & qnn_syslib_path, void ** sys_lib_handle);
