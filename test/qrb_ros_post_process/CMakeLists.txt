@@ -17,7 +17,7 @@ target_link_libraries(qrb_ros_post_process_node)
 
 rclcpp_components_register_nodes(
   qrb_ros_post_process_node
-  PLUGIN "qrb_ros::post_process::QrbRosPreProcessNode")
+  PLUGIN "qrb_ros::post_process::QrbRosPostProcessNode")
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

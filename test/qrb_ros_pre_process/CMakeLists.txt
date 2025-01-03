@@ -14,6 +14,7 @@ include_directories(
 
 ament_auto_add_library(qrb_ros_pre_process_node SHARED src/qrb_ros_pre_process_node.cpp)
 target_link_libraries(qrb_ros_pre_process_node opencv_core opencv_imgcodecs)
+target_link_directories(qrb_ros_pre_process_node PRIVATE /usr/local/lib) # point to the right opencv libs
 
 rclcpp_components_register_nodes(
   qrb_ros_pre_process_node

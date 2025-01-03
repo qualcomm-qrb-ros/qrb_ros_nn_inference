@@ -5,22 +5,20 @@
 
 namespace qrb::inference_mgr
 {
-QnnInference::QnnInference(const std::string & model_path,
-    const std::string & backend_option,
-    const std::string & qnn_syslib_path)
-  : model_path_(model_path), backend_option_(backend_option), qnn_syslib_path_(qnn_syslib_path)
-{
-  load_model_from_binary = true;
-
-  qnn_interface_ = std::make_unique<QnnInterface>(
-      backend_option_, &backend_lib_handle, qnn_syslib_path_, &sys_lib_handle_);
-}
 
 QnnInference::QnnInference(const std::string & model_path, const std::string & backend_option)
   : model_path_(model_path), backend_option_(backend_option)
 {
-  qnn_interface_ = std::make_unique<QnnInterface>(
-      model_path_, backend_option_, &backend_handle_, &model_handle_);
+  auto is_bin_model = (std::string::npos != model_path.find(".bin"));
+
+  if (is_bin_model) {
+    load_model_from_binary = true;
+    qnn_interface_ = std::make_unique<QnnInterface>(
+        backend_option_, &backend_lib_handle, qnn_syslib_path_, &sys_lib_handle_);
+  } else {
+    qnn_interface_ = std::make_unique<QnnInterface>(
+        model_path_, backend_option_, &backend_handle_, &model_handle_);
+  }
 }
 
 QnnInference::~QnnInference()
@@ -79,6 +77,21 @@ StatusCode QnnInference::inference_graph_init()
     }
   }
 
+  auto & graphs_info = (*(graphs_info_))[0];
+  io_tensors_ = QnnTensor(graphs_info.num_of_input_tensors, graphs_info.num_of_output_tensors);
+
+  if (StatusCode::SUCCESS != io_tensors_.setup_tensors(io_tensors_.inputs,
+                                 io_tensors_.num_of_input_tensors, graphs_info.input_tensors)) {
+    QRB_ERROR("Setup input tensors failed!");
+    return StatusCode::FAILURE;
+  }
+
+  if (StatusCode::SUCCESS != io_tensors_.setup_tensors(io_tensors_.outputs,
+                                 io_tensors_.num_of_output_tensors, graphs_info.output_tensors)) {
+    QRB_ERROR("Setup output tensors failed!");
+    return StatusCode::FAILURE;
+  }
+
   return StatusCode::SUCCESS;
 }
 
@@ -90,34 +103,22 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
   }
 
   auto & graphs_info = (*(graphs_info_))[0];
-  QnnTensor tensors(graphs_info.num_of_input_tensors, graphs_info.num_of_output_tensors);
 
-  if (StatusCode::SUCCESS != tensors.setup_tensors(tensors.inputs, tensors.num_of_input_tensors,
-                                 graphs_info.input_tensors)) {
-    QRB_ERROR("Setup input tensors failed!");
-    return StatusCode::FAILURE;
-  }
-
-  if (StatusCode::SUCCESS != tensors.setup_tensors(tensors.outputs, tensors.num_of_output_tensors,
-                                 graphs_info.output_tensors)) {
-    QRB_ERROR("Setup output tensors failed!");
-    return StatusCode::FAILURE;
-  }
-
-  if (StatusCode::SUCCESS != tensors.write_input_tensors(input_tensor_data)) {
+  if (StatusCode::SUCCESS != io_tensors_.write_input_tensors(input_tensor_data)) {
     QRB_ERROR("Write QNN input tensors failed!");
     return StatusCode::FAILURE;
   }
 
   if (QNN_GRAPH_NO_ERROR != this->qnn_interface_->interface.graphExecute(graphs_info.graph,
-                                tensors.inputs, tensors.num_of_input_tensors, tensors.outputs,
-                                tensors.num_of_output_tensors, nullptr, nullptr)) {
+                                io_tensors_.inputs, io_tensors_.num_of_input_tensors,
+                                io_tensors_.outputs, io_tensors_.num_of_output_tensors, nullptr,
+                                nullptr)) {
     QRB_ERROR("QNN graphExecute failed!");
     return StatusCode::FAILURE;
   }
 
 #ifndef __hexagon__
-  output_tensor_ = tensors.read_output_tensors(graphs_info.num_of_output_tensors);
+  output_tensor_ = io_tensors_.read_output_tensors(graphs_info.num_of_output_tensors);
   if (output_tensor_.size() == 0) {
     QRB_ERROR("Get ouput tensors failed!");
   }

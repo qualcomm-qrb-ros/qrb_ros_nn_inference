@@ -43,8 +43,6 @@ void QrbRosPreProcessNode::init(std::string image_path)
     tensor.name = "input_tensor";
     tensor.shape = std::vector<uint32_t>{ 640, 640, 3 };
 
-    RCLCPP_INFO(this->get_logger(), "pre-process node is publishing %s", image_path.c_str());
-
     cv::Mat img = cv::imread(image_path);
     cv::resize(img, img, cv::Size(640, 640), 0, 0, cv::INTER_AREA);
     img.convertTo(img, CV_32F, 1.0 / 255.0);
@@ -62,6 +60,7 @@ void QrbRosPreProcessNode::init(std::string image_path)
     tensor.data = std::move(img_data);
     msg.tensor_list.emplace_back(tensor);
 
+    RCLCPP_INFO(this->get_logger(), "pre-process node is publishing %s", image_path.c_str());
     pub_->publish(std::move(msg));
   });
 }

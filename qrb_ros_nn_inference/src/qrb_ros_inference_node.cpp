@@ -14,9 +14,8 @@ QrbRosInferenceNode::QrbRosInferenceNode(const rclcpp::NodeOptions & options)
 {
   std::string backend_option = this->declare_parameter("backend_option", "");
   std::string model_path = this->declare_parameter("model_path", "");
-  std::string qnn_syslib_path = this->declare_parameter("qnn_syslib_path", "");
 
-  if (false == this->init(model_path, backend_option, qnn_syslib_path)) {
+  if (false == this->init(model_path, backend_option)) {
     rclcpp::shutdown();
   }
 
@@ -84,15 +83,12 @@ void QrbRosInferenceNode::publish_msg(custom_msg::TensorList pub_tensors)
  * \brief initilize the qrb_inference_mgr_
  * \param model_path path of model
  * \param backend_option backend lib of QNN
- * \param qnn_syslib_path path of libQnnSystem.so
  * \return true if success or false for failed
  */
-bool QrbRosInferenceNode::init(const std::string & model_path,
-    const std::string & backend_option,
-    const std::string & qnn_syslib_path)
+bool QrbRosInferenceNode::init(const std::string & model_path, const std::string & backend_option)
 try {
-  qrb_inference_mgr_ = std::make_unique<qrb::inference_mgr::QrbInferenceManager>(
-      model_path, backend_option, qnn_syslib_path);
+  qrb_inference_mgr_ =
+      std::make_unique<qrb::inference_mgr::QrbInferenceManager>(model_path, backend_option);
 
   return true;
 } catch (const std::logic_error & e) {
