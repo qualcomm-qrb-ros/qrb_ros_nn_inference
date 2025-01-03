@@ -13,11 +13,11 @@ namespace qrb_ros::post_process
 
 namespace custom_msg = qrb_ros_tensor_list_msgs::msg;
 
-class QrbRosPreProcessNode : public rclcpp::Node
+class QrbRosPostProcessNode : public rclcpp::Node
 {
 public:
-  QrbRosPreProcessNode(const rclcpp::NodeOptions & options);
-  ~QrbRosPreProcessNode();
+  QrbRosPostProcessNode(const rclcpp::NodeOptions & options);
+  ~QrbRosPostProcessNode();
 
 private:
   rclcpp::Subscription<custom_msg::TensorList>::SharedPtr sub_{ nullptr };

@@ -1,6 +1,7 @@
 build
 install
 log
+inference_result
 
 __pycache__/
 .pytest_cache/

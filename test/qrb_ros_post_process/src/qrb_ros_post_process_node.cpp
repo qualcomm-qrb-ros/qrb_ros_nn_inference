@@ -9,24 +9,24 @@
 namespace qrb_ros::post_process
 {
 
-QrbRosPreProcessNode::QrbRosPreProcessNode(const rclcpp::NodeOptions & options)
-  : Node("QrbRosPreProcessNode", options)
+QrbRosPostProcessNode::QrbRosPostProcessNode(const rclcpp::NodeOptions & options)
+  : Node("QrbRosPostProcessNode", options)
 {
-  RCLCPP_INFO(this->get_logger(), "QrbRosPreProcessNode starting...");
+  RCLCPP_INFO(this->get_logger(), "QrbRosPostProcessNode starting...");
 
   auto sub_opt = rclcpp::SubscriptionOptions();
   sub_opt.callback_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
   this->sub_ = this->create_subscription<custom_msg::TensorList>("qrb_inference_output_tensor", 10,
-      std::bind(&QrbRosPreProcessNode::subscription_callback, this, std::placeholders::_1),
+      std::bind(&QrbRosPostProcessNode::subscription_callback, this, std::placeholders::_1),
       sub_opt);
 }
 
-QrbRosPreProcessNode::~QrbRosPreProcessNode()
+QrbRosPostProcessNode::~QrbRosPostProcessNode()
 {
-  RCLCPP_INFO(this->get_logger(), "QrbRosPreProcessNode stopping...");
+  RCLCPP_INFO(this->get_logger(), "QrbRosPostProcessNode stopping...");
 }
 
-void QrbRosPreProcessNode::subscription_callback(const custom_msg::TensorList & msg)
+void QrbRosPostProcessNode::subscription_callback(const custom_msg::TensorList & msg)
 {
   std::string workspace = std::string{ std::getenv("QRB_ROS_WS") };
   std::string result_path{ workspace +
@@ -56,4 +56,4 @@ void QrbRosPreProcessNode::subscription_callback(const custom_msg::TensorList & 
 }  // namespace qrb_ros::post_process
 
 #include "rclcpp_components/register_node_macro.hpp"
-RCLCPP_COMPONENTS_REGISTER_NODE(qrb_ros::post_process::QrbRosPreProcessNode)
+RCLCPP_COMPONENTS_REGISTER_NODE(qrb_ros::post_process::QrbRosPostProcessNode)

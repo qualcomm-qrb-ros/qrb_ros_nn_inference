@@ -43,7 +43,12 @@ rm -rf /opt/qcom/qnn_sdk_v${QNN_SDK_VER} && \
 download TensorFlow source code:
 
 ```bash
-git clone --branch v2.16.1 https://github.com/tensorflow/tensorflow.git /opt/tensorflow && export TENSORFLOW_SOURCE_DIR="/opt/tensorflow"
+git clone --branch v2.16.1 https://github.com/tensorflow/tensorflow.git /opt/tensorflow && \
+export TENSORFLOW_SOURCE_DIR="/opt/tensorflow" && cd $TENSORFLOW_SOURCE_DIR && \
+mkdir tflite-build && cd tflite-build && \
+cmake ../tensorflow/lite/c && \
+cmake --build . -j8 && \
+cp ./libtensorflowlite_c.so /usr/local/lib
 ```
 
 # 4. Use qrb_inference_manager in your C++ project

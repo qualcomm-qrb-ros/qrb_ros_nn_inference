@@ -10,7 +10,7 @@ def generate_launch_description():
     name = "pre_process_node",
     parameters=[
       {
-        "image_path": "/path/to/image"
+        "image_path": "/workspace/qrb_ros_ws/bus.jpg"
       }
     ]
   )
@@ -22,14 +22,14 @@ def generate_launch_description():
     parameters=[
       {
         "backend_option": "",
-        "model_path": "/path/to/model"
+        "model_path": "/workspace/qrb_ros_ws/yolov8_det.tflite"
       }
     ]
   )
 
   post_precess_node = ComposableNode(
     package = "qrb_ros_post_process",
-    plugin = "qrb_ros::post_process::QrbRosPreProcessNode",
+    plugin = "qrb_ros::post_process::QrbRosPostProcessNode",
     name = "post_process_node"
   )
 

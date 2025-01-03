@@ -58,6 +58,7 @@ StatusCode QnnDelegateInference::register_qnn_delegate()
       QRB_ERROR("Qnn Delegate create fail!");
       return StatusCode::FAILURE;
     }
+    TfLiteInterpreterOptionsAddDelegate(options_, delegate_);
   }
 
   return StatusCode::SUCCESS;
@@ -66,14 +67,22 @@ StatusCode QnnDelegateInference::register_qnn_delegate()
 StatusCode QnnDelegateInference::inference_init()
 {
   model_ = TfLiteModelCreateFromFile(model_path_.c_str());
-  // judge failure
+  if (model_ == nullptr) {
+    QRB_ERROR("TFLite model create fail!");
+    return StatusCode::FAILURE;
+  }
 
   options_ = TfLiteInterpreterOptionsCreate();
-  TfLiteInterpreterOptionsAddDelegate(options_, delegate_);
-  TfLiteInterpreterOptionsSetNumThreads(options_, 4);
+  if (this->register_qnn_delegate() == StatusCode::FAILURE) {
+    return StatusCode::FAILURE;
+  }
 
+  TfLiteInterpreterOptionsSetNumThreads(options_, 4);
   interpreter_ = TfLiteInterpreterCreate(model_, options_);
-  // judge failure
+  if (interpreter_ == nullptr) {
+    QRB_ERROR("TFLite interpreter create fail!");
+    return StatusCode::FAILURE;
+  }
 
   TfLiteInterpreterAllocateTensors(interpreter_);
 
