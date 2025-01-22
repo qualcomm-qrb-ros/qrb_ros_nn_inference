@@ -26,7 +26,7 @@ struct OutputTensor {
 
 <h1 id="2">Functions</h1>
 
-<h3 id="2.1">QrbInferenceManager - <a href="https://github.qualcomm.com/nasong/qrb_inference_manager/blob/main/src/qrb_inference_manager.cpp#L18">[source]</a></h3>
+<h3 id="2.1">QrbInferenceManager - <a href="https://github.com/quic-qrb-ros/qrb_ros_nn_inference/blob/main/qrb_inference_manager/src/qrb_inference_manager.cpp#L19">[source]</a></h3>
 
 ```cpp
 /**
@@ -53,7 +53,7 @@ Warning⚠️: Models in different formats need different backend option, make s
 |   "model.so"   | "libQnnDsp.so" |     inference with DSP      |
 |  "model.bin"   | "libQnnHtp.so" |     inference with HTP      |
 
-<h3 id="2.2">inference_execute - <a href="https://github.qualcomm.com/nasong/qrb_inference_manager/blob/main/src/qrb_inference_manager.cpp#L43">[source]</a></h1>
+<h3 id="2.2">inference_execute - <a href="https://github.com/quic-qrb-ros/qrb_ros_nn_inference/blob/main/qrb_inference_manager/src/qrb_inference_manager.cpp#L45">[source]</a></h1>
 
 ```cpp
 /**
@@ -64,7 +64,7 @@ Warning⚠️: Models in different formats need different backend option, make s
 bool inference_execute(const std::vector<uint8_t> &input_tensor_data);
 ```
 
-<h3 id="2.3">get_output_tensors - <a href="https://github.qualcomm.com/nasong/qrb_inference_manager/blob/main/src/qrb_inference_manager.cpp#L51">[source]</a></h1>
+<h3 id="2.3">get_output_tensors - <a href="https://github.com/quic-qrb-ros/qrb_ros_nn_inference/blob/main/qrb_inference_manager/src/qrb_inference_manager.cpp#L53">[source]</a></h1>
 
 ```cpp
 /**
