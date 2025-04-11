@@ -116,7 +116,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
     ```bash
         cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws && \
-        git clone https://github.com/quic-qrb-ros/qrb_ros_tensor_list_msgs.git && \
+        git clone https://github.com/quic-qrb-ros/interfaces && \
         git clone https://github.com/quic-qrb-ros/qrb_ros_nn_inference.git
     ```
 
@@ -126,7 +126,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
     ```bash
       cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws && \
-      export AMENT_PREFIX_PATH="${OECORE_TARGET_SYSROOT}/usr;${OECORE_NATIVE_SYSROOT}/usr" && \
+      export AMENT_PREFIX_PATH="${OECORE_TARGET_SYSROOT}/usr:${OECORE_NATIVE_SYSROOT}/usr" && \
       export PYTHONPATH=${PYTHONPATH}:${OECORE_TARGET_SYSROOT}/usr/lib/python3.10/site-packages && \
       colcon build --merge-install --cmake-args \
         -DPython3_ROOT_DIR=${OECORE_TARGET_SYSROOT}/usr \
