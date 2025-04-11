@@ -116,7 +116,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
     ```bash
         cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws && \
-        git clone https://github.com/quic-qrb-ros/interfaces && \
+        git clone https://github.com/quic-qrb-ros/qrb_ros_tensor_list_msgs.git && \
         git clone https://github.com/quic-qrb-ros/qrb_ros_nn_inference.git
     ```
 
