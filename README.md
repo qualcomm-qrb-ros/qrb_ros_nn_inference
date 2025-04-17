@@ -7,7 +7,7 @@
 
 ## 🙋‍♂️ Overview
 
-**qrb_ros_nn_inference** is a ROS2 package for performing neural network model, providing 🤖AI-based perception for robotics applications.<br> 
+**qrb_ros_nn_inference** is a ROS2 package for performing neural network model, providing 🤖AI-based perception for robotics applications.<br>
 
 qrb_ros_nn_inference support:
 - 🚀hardware acceleration based on Qualcomm platforms
@@ -20,7 +20,7 @@ qrb_ros_nn_inference support:
 We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
 <details>
-<summary>Docker</summary>
+<summary>On-Device Compilation with Docker</summary>
 
 1. please follow [steps](https://github.com/quic-qrb-ros/qrb_ros_docker?tab=readme-ov-file#quickstart) to setup docker env.
 
@@ -36,7 +36,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
 ```bash
     cd ${QRB_ROS_WS} && \
-    colcon build --packages-select qrb_ros_nn_inference
+    colcon build --packages-up-to qrb_ros_nn_inference
 ```
 
 4. test qrb_ros_nn_inference with YOLOv8 detection model
@@ -108,14 +108,15 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
 
 <details>
-<summary>QIRP SDK</summary>
+<summary>Cross Compilation with QIRP SDK</summary>
 
 1. please follow [steps](https://quic-qrb-ros.github.io/getting_started/index.html) to setup qirp-sdk env.
 
 2. clone this repository and dependencies
 
     ```bash
-        cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws && \
+        mdkir -p <qirp_decompressed_workspace>/qirp-sdk/ros_ws/src && \
+        cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/src && \
         git clone https://github.com/quic-qrb-ros/qrb_ros_tensor_list_msgs.git && \
         git clone https://github.com/quic-qrb-ros/qrb_ros_nn_inference.git
     ```
@@ -126,14 +127,14 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
     ```bash
       cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws && \
-      export AMENT_PREFIX_PATH="${OECORE_TARGET_SYSROOT}/usr:${OECORE_NATIVE_SYSROOT}/usr" && \
-      export PYTHONPATH=${PYTHONPATH}:${OECORE_TARGET_SYSROOT}/usr/lib/python3.10/site-packages && \
-      colcon build --merge-install --cmake-args \
-        -DPython3_ROOT_DIR=${OECORE_TARGET_SYSROOT}/usr \
-        -DPython3_NumPy_INCLUDE_DIR=${OECORE_TARGET_SYSROOT}/usr/lib/python3.10/site-packages/numpy/core/include \
-        -DPYTHON_SOABI=cpython-310-aarch64-linux-gnu -DCMAKE_STAGING_PREFIX=$(pwd)/install \
-        -DCMAKE_PREFIX_PATH=$(pwd)/install/share \
-        -DBUILD_TESTING=OFF
+      colcon build --cmake-args \
+        -DPYTHON_EXECUTABLE=${OECORE_NATIVE_SYSROOT}/usr/bin/python3 \
+        -DPython3_NumPy_INCLUDE_DIR=${OECORE_NATIVE_SYSROOT}/usr/lib/python3.12/site-packages/numpy/core/include \
+        -DPYTHON_SOABI=cpython-312-aarch64-linux-gnu \
+        -DCMAKE_MAKE_PROGRAM=/usr/bin/make \
+        -DCMAKE_LIBRARY_PATH=${OECORE_TARGET_SYSROOT}/usr/lib \
+        -DBUILD_TESTING=OFF \
+        -DCMAKE_TOOLCHAIN_FILE=${OE_CMAKE_TOOLCHAIN_FILE}
     ```
 
 5. source this file to set up the environment on your device:
