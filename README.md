@@ -22,14 +22,14 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 <details>
 <summary>On-Device Compilation with Docker</summary>
 
-1. please follow [steps](https://github.com/quic-qrb-ros/qrb_ros_docker?tab=readme-ov-file#quickstart) to setup docker env.
+1. please follow [steps](https://github.com/qualcomm-qrb-ros/qrb_ros_docker?tab=readme-ov-file#quickstart) to setup docker env.
 
 2. download the qrb_ros_nn_inference and dependencies
 
 ```bash
     cd ${QRB_ROS_WS}/src && \
-    git clone https://github.com/quic-qrb-ros/qrb_ros_tensor_list_msgs.git && \
-    git clone https://github.com/quic-qrb-ros/qrb_ros_nn_inference.git
+    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_tensor_list_msgs.git && \
+    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference.git
 ```
 
 3. build qrb_ros_nn_inference
@@ -110,15 +110,15 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 <details>
 <summary>Cross Compilation with QIRP SDK</summary>
 
-1. please follow [steps](https://quic-qrb-ros.github.io/getting_started/index.html) to setup qirp-sdk env.
+1. please follow [steps](https://qualcomm-qrb-ros.github.io/getting_started/index.html) to setup qirp-sdk env.
 
 2. clone this repository and dependencies
 
     ```bash
         mdkir -p <qirp_decompressed_workspace>/qirp-sdk/ros_ws/src && \
         cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/src && \
-        git clone https://github.com/quic-qrb-ros/qrb_ros_tensor_list_msgs.git && \
-        git clone https://github.com/quic-qrb-ros/qrb_ros_nn_inference.git
+        git clone https://github.com/qualcomm-qrb-ros/qrb_ros_tensor_list_msgs.git && \
+        git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference.git
     ```
 
 3. prepare your pre and post process node
@@ -155,7 +155,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
 </details>
 
-You can get more details from [QRB ROS Documentation](https://quic-qrb-ros.github.io/main/packages/qrb_ros_nn_inference/index.html).
+You can get more details from [QRB ROS Documentation](https://qualcomm-qrb-ros.github.io/main/packages/qrb_ros_nn_inference/index.html).
 
 ## 🙏 Contributing
 
@@ -170,7 +170,7 @@ We so much would love to have you as a part of the QRB ROS community. Whether yo
 
 * **Na Song** - *Initial work* - [@nasongCool](https://github.com/nasongCool)
 
-See also the list of [contributors](https://github.com/quic-qrb-ros/qrb_ros_nn_inference/graphs/contributors) who participated in this project.
+See also the list of [contributors](https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference/graphs/contributors) who participated in this project.
 
 ## 📃 License
 
