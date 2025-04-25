@@ -33,7 +33,7 @@ private:
   Qnn_ContextHandle_t context_ = nullptr;
   GraphInfo ** graphs_info_ = nullptr;
   uint32_t graphs_count_ = 0;
-  bool support_device = false;
+  bool support_device_ = false;
   std::vector<OutputTensor> output_tensor_;
   std::unique_ptr<QnnInterface> qnn_interface_{ nullptr };
 

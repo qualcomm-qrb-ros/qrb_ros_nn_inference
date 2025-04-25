@@ -12,6 +12,8 @@ QnnInference::QnnInference(const std::string & model_path, const std::string & b
   auto is_bin_model = (std::string::npos != model_path.find(".bin"));
 
   if (is_bin_model) {
+    QRB_INFO("Loading model from binary file: ", model_path);
+
     load_model_from_binary = true;
     qnn_interface_ = std::make_unique<QnnInterface>(
         backend_option_, &backend_lib_handle, qnn_syslib_path_, &sys_lib_handle_);
@@ -88,7 +90,6 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
   }
 
   for (uint32_t i = 0; i < graphs_count_; i++) {
-    QRB_INFO("graphs_count_: ", graphs_count_);
     const auto & graphs_info = (*(graphs_info_))[i];
 
     auto io_tensors =
@@ -145,6 +146,7 @@ StatusCode QnnInference::initialize_backend()
     return StatusCode::FAILURE;
   }
 
+  QRB_INFO(backend_option_, " initialize successfully");
   return StatusCode::SUCCESS;
 }
 
@@ -173,8 +175,10 @@ StatusCode QnnInference::create_device()
         return StatusCode::FAILURE;
       }
     }
-    support_device = true;
+    support_device_ = true;
   }
+
+  QRB_INFO("Qnn device initialize successfully");
   return StatusCode::SUCCESS;
 }
 
@@ -244,7 +248,7 @@ void QnnInference::free_context()
 
 void QnnInference::free_device()
 {
-  if (true == support_device) {
+  if (true == support_device_) {
     if (nullptr != qnn_interface_->interface.deviceFree) {
       auto qnn_status = qnn_interface_->interface.deviceFree(device_handle_);
       if (QNN_SUCCESS != qnn_status && QNN_DEVICE_ERROR_UNSUPPORTED_FEATURE != qnn_status) {
@@ -282,6 +286,7 @@ StatusCode QnnInference::init_graph_from_binary()
     return StatusCode::FAILURE;
   }
 
+  QRB_INFO("Initialize Qnn graph from binary file successfully");
   return StatusCode::SUCCESS;
 }
 
@@ -350,7 +355,10 @@ StatusCode QnnInference::copy_graph_info(T graph_info_from_binary)
   }
 
   for (uint32_t i = 0; i < graphs_count_; i++) {
-    auto & graph_info_dst = graphs_info_[i];
+    auto graph_info_dst = (GraphInfo *)calloc(1, sizeof(GraphInfo));
+    if (nullptr == graph_info_dst) {
+      return StatusCode::FAILURE;
+    }
 
     graph_info_dst->graph_name =
         (char *)malloc(sizeof(char) * strlen(graph_info_from_binary.graphName));
@@ -392,6 +400,8 @@ StatusCode QnnInference::copy_graph_info(T graph_info_from_binary)
                                    graph_info_dst->output_tensors)) {
       return StatusCode::FAILURE;
     }
+
+    graphs_info_[i] = graph_info_dst;
   }
 
   return StatusCode::SUCCESS;

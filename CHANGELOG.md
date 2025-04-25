@@ -28,3 +28,8 @@
 
 - support multiple Qnn Graph
 - Contributors👉 Na Song
+
+## 0.3.1 (2025-05-07)
+
+- fix bug during copy_graph_info()
+- Contributors👉 Na Song
