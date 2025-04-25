@@ -36,7 +36,6 @@ private:
   bool support_device = false;
   std::vector<OutputTensor> output_tensor_;
   std::unique_ptr<QnnInterface> qnn_interface_{ nullptr };
-  QnnTensor io_tensors_;
 
   StatusCode initialize_backend();
   StatusCode create_device();
@@ -53,6 +52,8 @@ private:
   std::tuple<std::shared_ptr<uint8_t[]>, uint64_t> read_binary_model();
   StatusCode get_and_set_graph_info_from_binary(const std::shared_ptr<uint8_t[]> model_buf,
       const uint64_t model_buf_size);
+  template <typename T>
+  StatusCode copy_graph_info(T graph_info_from_binary);
   StatusCode set_up_graph_info(const QnnSystemContext_BinaryInfo_t * binary_info);
   StatusCode create_context_from_binary(const std::shared_ptr<uint8_t[]> model_buf,
       const uint64_t model_buf_size);

@@ -77,21 +77,6 @@ StatusCode QnnInference::inference_graph_init()
     }
   }
 
-  auto & graphs_info = (*(graphs_info_))[0];
-  io_tensors_ = QnnTensor(graphs_info.num_of_input_tensors, graphs_info.num_of_output_tensors);
-
-  if (StatusCode::SUCCESS != io_tensors_.setup_tensors(io_tensors_.inputs,
-                                 io_tensors_.num_of_input_tensors, graphs_info.input_tensors)) {
-    QRB_ERROR("Setup input tensors failed!");
-    return StatusCode::FAILURE;
-  }
-
-  if (StatusCode::SUCCESS != io_tensors_.setup_tensors(io_tensors_.outputs,
-                                 io_tensors_.num_of_output_tensors, graphs_info.output_tensors)) {
-    QRB_ERROR("Setup output tensors failed!");
-    return StatusCode::FAILURE;
-  }
-
   return StatusCode::SUCCESS;
 }
 
@@ -102,27 +87,45 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
     return StatusCode::FAILURE;
   }
 
-  auto & graphs_info = (*(graphs_info_))[0];
+  for (uint32_t i = 0; i < graphs_count_; i++) {
+    QRB_INFO("graphs_count_: ", graphs_count_);
+    const auto & graphs_info = (*(graphs_info_))[i];
 
-  if (StatusCode::SUCCESS != io_tensors_.write_input_tensors(input_tensor_data)) {
-    QRB_ERROR("Write QNN input tensors failed!");
-    return StatusCode::FAILURE;
-  }
+    auto io_tensors =
+        QnnTensor(graphs_info.num_of_input_tensors, graphs_info.num_of_output_tensors);
 
-  if (QNN_GRAPH_NO_ERROR != this->qnn_interface_->interface.graphExecute(graphs_info.graph,
-                                io_tensors_.inputs, io_tensors_.num_of_input_tensors,
-                                io_tensors_.outputs, io_tensors_.num_of_output_tensors, nullptr,
-                                nullptr)) {
-    QRB_ERROR("QNN graphExecute failed!");
-    return StatusCode::FAILURE;
-  }
+    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.inputs,
+                                   io_tensors.num_of_input_tensors, graphs_info.input_tensors)) {
+      QRB_ERROR("Setup input tensors failed!");
+      return StatusCode::FAILURE;
+    }
+
+    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.outputs,
+                                   io_tensors.num_of_output_tensors, graphs_info.output_tensors)) {
+      QRB_ERROR("Setup output tensors failed!");
+      return StatusCode::FAILURE;
+    }
+
+    if (StatusCode::SUCCESS != io_tensors.write_input_tensors(input_tensor_data)) {
+      QRB_ERROR("Write QNN input tensors failed!");
+      return StatusCode::FAILURE;
+    }
+
+    if (QNN_GRAPH_NO_ERROR != this->qnn_interface_->interface.graphExecute(graphs_info.graph,
+                                  io_tensors.inputs, io_tensors.num_of_input_tensors,
+                                  io_tensors.outputs, io_tensors.num_of_output_tensors, nullptr,
+                                  nullptr)) {
+      QRB_ERROR("QNN graphExecute failed!");
+      return StatusCode::FAILURE;
+    }
 
 #ifndef __hexagon__
-  output_tensor_ = io_tensors_.read_output_tensors(graphs_info.num_of_output_tensors);
-  if (output_tensor_.size() == 0) {
-    QRB_ERROR("Get ouput tensors failed!");
-  }
+    output_tensor_ = io_tensors.read_output_tensors(graphs_info.num_of_output_tensors);
+    if (output_tensor_.size() == 0) {
+      QRB_ERROR("Get ouput tensors failed!");
+    }
 #endif
+  }
 
   return StatusCode::SUCCESS;
 }
@@ -214,13 +217,15 @@ void QnnInference::free_graphs_info()
     return;
   }
 
-  auto & graph_info = graphs_info_[0];  // only one graph
-  free(graph_info->graph_name);
-  graph_info->graph_name = nullptr;
+  for (uint32_t i = 0; i < graphs_count_; i++) {
+    auto & graph_info = graphs_info_[i];
+    free(graph_info->graph_name);
+    graph_info->graph_name = nullptr;
 
-  QnnTensor tensor_ops;
-  tensor_ops.free_qnn_tensors(graph_info->input_tensors, graph_info->num_of_input_tensors);
-  tensor_ops.free_qnn_tensors(graph_info->output_tensors, graph_info->num_of_output_tensors);
+    QnnTensor tensor_ops;
+    tensor_ops.free_qnn_tensors(graph_info->input_tensors, graph_info->num_of_input_tensors);
+    tensor_ops.free_qnn_tensors(graph_info->output_tensors, graph_info->num_of_output_tensors);
+  }
 
   free(*graphs_info_);
   *graphs_info_ = nullptr;
@@ -336,6 +341,62 @@ StatusCode QnnInference::get_and_set_graph_info_from_binary(
   return StatusCode::SUCCESS;
 }
 
+template <typename T>
+StatusCode QnnInference::copy_graph_info(T graph_info_from_binary)
+{
+  graphs_info_ = (GraphInfo **)calloc(graphs_count_, sizeof(GraphInfo *));
+  if (nullptr == graphs_info_) {
+    return StatusCode::FAILURE;
+  }
+
+  for (uint32_t i = 0; i < graphs_count_; i++) {
+    auto & graph_info_dst = graphs_info_[i];
+
+    graph_info_dst->graph_name =
+        (char *)malloc(sizeof(char) * strlen(graph_info_from_binary.graphName));
+    if (nullptr == graph_info_dst->graph_name) {
+      return StatusCode::FAILURE;
+    }
+    memcpy(graph_info_dst->graph_name, graph_info_from_binary.graphName,
+        strlen(graph_info_from_binary.graphName));
+
+    auto set_up_tensors_info = [](const Qnn_Tensor_t * src, const uint32_t cnt,
+                                   Qnn_Tensor_t *& dst) {
+      dst = (Qnn_Tensor_t *)calloc(cnt, sizeof(Qnn_Tensor_t));
+      if (nullptr == dst) {
+        return StatusCode::FAILURE;
+      }
+
+      QnnTensor tensor_ops;
+
+      for (size_t i = 0; i < cnt; i++) {
+        dst[i] = QNN_TENSOR_INIT;
+        if (StatusCode::SUCCESS != tensor_ops.tensor_info_deep_copy(&dst[i], &src[i])) {
+          return StatusCode::FAILURE;
+        }
+      }
+
+      return StatusCode::SUCCESS;
+    };
+
+    graph_info_dst->num_of_input_tensors = graph_info_from_binary.numGraphInputs;
+    if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_from_binary.graphInputs,
+                                   graph_info_from_binary.numGraphInputs,
+                                   graph_info_dst->input_tensors)) {
+      return StatusCode::FAILURE;
+    }
+
+    graph_info_dst->num_of_output_tensors = graph_info_from_binary.numGraphOutputs;
+    if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_from_binary.graphOutputs,
+                                   graph_info_from_binary.numGraphOutputs,
+                                   graph_info_dst->output_tensors)) {
+      return StatusCode::FAILURE;
+    }
+  }
+
+  return StatusCode::SUCCESS;
+}
+
 /// @brief set up graphs_info_ based on binary_info
 /// @param binary_info
 /// @return SUCCESS or FAILURE
@@ -345,61 +406,36 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
     return StatusCode::FAILURE;
   }
 
-  if (1 != binary_info->contextBinaryInfoV1.numGraphs) {
-    QRB_ERROR("Only support reading one model in binary file!");
-    return StatusCode::FAILURE;
-  }
-
-  if (QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_1 != binary_info->version) {
-    QRB_ERROR("Unrecognized system context binary info version.");
-    return StatusCode::FAILURE;
-  }
-
-  graphs_info_ = (GraphInfo **)calloc(1, sizeof(GraphInfo *));
-  GraphInfo * graph_info_dst = (GraphInfo *)calloc(1, sizeof(GraphInfo));
-  if (nullptr == graphs_info_ || nullptr == graph_info_dst) {
-    return StatusCode::FAILURE;
-  }
-
-  const auto graph_info_src = binary_info->contextBinaryInfoV1.graphs->graphInfoV1;
-
-  graph_info_dst->graph_name = (char *)malloc(sizeof(char) * strlen(graph_info_src.graphName));
-  if (nullptr == graph_info_dst->graph_name) {
-    return StatusCode::FAILURE;
-  }
-  memcpy(graph_info_dst->graph_name, graph_info_src.graphName, strlen(graph_info_src.graphName));
-
-  auto set_up_tensors_info = [](const Qnn_Tensor_t * src, const uint32_t cnt, Qnn_Tensor_t *& dst) {
-    dst = (Qnn_Tensor_t *)calloc(cnt, sizeof(Qnn_Tensor_t));
-    if (nullptr == dst) {
-      return StatusCode::FAILURE;
-    }
-
-    QnnTensor tensor_ops;
-
-    for (size_t i = 0; i < cnt; i++) {
-      dst[i] = QNN_TENSOR_INIT;
-      if (StatusCode::SUCCESS != tensor_ops.tensor_info_deep_copy(&dst[i], &src[i])) {
+  switch (binary_info->version) {
+    case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_1: {
+      graphs_count_ = binary_info->contextBinaryInfoV1.numGraphs;
+      if (StatusCode::SUCCESS !=
+          copy_graph_info(binary_info->contextBinaryInfoV1.graphs->graphInfoV1)) {
         return StatusCode::FAILURE;
       }
+      break;
     }
-
-    return StatusCode::SUCCESS;
-  };
-
-  graph_info_dst->num_of_input_tensors = graph_info_src.numGraphInputs;
-  if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_src.graphInputs,
-                                 graph_info_src.numGraphInputs, graph_info_dst->input_tensors)) {
-    return StatusCode::FAILURE;
+    case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_2: {
+      graphs_count_ = binary_info->contextBinaryInfoV2.numGraphs;
+      if (StatusCode::SUCCESS !=
+          copy_graph_info(binary_info->contextBinaryInfoV2.graphs->graphInfoV2)) {
+        return StatusCode::FAILURE;
+      }
+      break;
+    }
+    case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_3: {
+      graphs_count_ = binary_info->contextBinaryInfoV3.numGraphs;
+      if (StatusCode::SUCCESS !=
+          copy_graph_info(binary_info->contextBinaryInfoV3.graphs->graphInfoV3)) {
+        return StatusCode::FAILURE;
+      }
+      break;
+    }
+    default: {
+      QRB_ERROR("Unrecognized system context binary info version.");
+      return StatusCode::FAILURE;
+    }
   }
-
-  graph_info_dst->num_of_output_tensors = graph_info_src.numGraphOutputs;
-  if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_src.graphOutputs,
-                                 graph_info_src.numGraphOutputs, graph_info_dst->output_tensors)) {
-    return StatusCode::FAILURE;
-  }
-
-  graphs_info_[0] = graph_info_dst;
 
   return StatusCode::SUCCESS;
 }
@@ -413,12 +449,13 @@ StatusCode QnnInference::create_context_from_binary(const std::shared_ptr<uint8_
     return StatusCode::FAILURE;
   }
 
-  if (QNN_SUCCESS != qnn_interface_->interface.graphRetrieve(
-                         context_, (*graphs_info_)[0].graph_name, &((*graphs_info_)[0].graph))) {
-    QRB_ERROR("Unable to retrieve graph handle for the graph");
-    return StatusCode::FAILURE;
+  for (uint32_t i = 0; i < graphs_count_; i++) {
+    if (QNN_SUCCESS != qnn_interface_->interface.graphRetrieve(
+                           context_, (*graphs_info_)[i].graph_name, &((*graphs_info_)[i].graph))) {
+      QRB_ERROR("Unable to retrieve graph handle for the graph");
+      return StatusCode::FAILURE;
+    }
   }
-
   return StatusCode::SUCCESS;
 }
 
