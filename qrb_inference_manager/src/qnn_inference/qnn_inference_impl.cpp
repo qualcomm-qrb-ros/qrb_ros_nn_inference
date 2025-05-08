@@ -43,7 +43,7 @@ inline T QnnInterface::get_function_from_lib(const std::string & lib_name,
   if (nullptr == *lib_handle) {
     *lib_handle = ::dlopen(lib_name.c_str(), open_flag);
     if (nullptr == *lib_handle) {
-      QRB_ERROR("Unable to open lib!");
+      QRB_ERROR("Unable to open lib: ", lib_name.c_str());
       return nullptr;
     }
   }

@@ -23,3 +23,13 @@
 - optimize the compiling process of tensorflow-lite
 - qnn_delegate_inference use tensorflow-lit C API
 - Contributors👉 Na Song
+
+## 0.3.0 (2025-04-28)
+
+- support multiple Qnn Graph
+- Contributors👉 Na Song
+
+## 0.3.1 (2025-05-07)
+
+- fix bug during copy_graph_info()
+- Contributors👉 Na Song
