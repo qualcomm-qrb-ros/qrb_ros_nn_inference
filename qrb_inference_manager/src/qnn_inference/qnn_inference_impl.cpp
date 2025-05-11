@@ -238,6 +238,23 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_dat
   return StatusCode::SUCCESS;
 }
 
+int32_t QnnDTypeToQrbDtype(Qnn_DataType_t data_type)
+{
+  switch (data_type) {
+    case QNN_DATATYPE_UINT_8:
+      return 0;
+    case QNN_DATATYPE_INT_8:
+      return 1;
+    case QNN_DATATYPE_FLOAT_32:
+      return 2;
+    case QNN_DATATYPE_FLOAT_64:
+      return 3;
+    default:
+      QRB_WARNING("Input data type is not suppport!");
+      return -1;
+  }
+}
+
 /// @brief get information of output tensors, incluing name, shape, data
 /// @param number_of_outputs number of output tensors
 /// @return all information of output tensors
@@ -257,17 +274,20 @@ std::vector<OutputTensor> QnnTensor::read_output_tensors(const uint32_t number_o
       shape.emplace_back(get_tensor_dimensions(output)[i]);
     }
 
-    if (get_tensor_data_type(output) == QNN_DATATYPE_FLOAT_32) {
-      size_t tensor_size = get_tensor_size(output, shape);
-
-      auto output_buf = static_cast<uint8_t *>(get_tensor_client_buf(output).data);
-      res[i].output_tensor_data = std::vector<uint8_t>(output_buf, output_buf + tensor_size);
-      res[i].output_tensor_name = get_tensor_name(output);
-      res[i].output_tensor_shape = std::vector<uint32_t>(shape.begin(), shape.end());
-    } else {
-      QRB_ERROR("Input tensor data type not support!");
+    int32_t qrb_dtype = QnnDTypeToQrbDtype(get_tensor_data_type(output));
+    if (qrb_dtype == -1) {
+      QRB_ERROR("The Qnn data type (,", get_tensor_data_type(output),
+          ") of output tensor is not supported!");
       return std::vector<OutputTensor>();
     }
+
+    size_t tensor_size = get_tensor_size(output, shape);
+
+    auto output_buf = static_cast<uint8_t *>(get_tensor_client_buf(output).data);
+    res[i].output_tensor_data = std::vector<uint8_t>(output_buf, output_buf + tensor_size);
+    res[i].output_tensor_name = get_tensor_name(output);
+    res[i].output_tensor_shape = std::vector<uint32_t>(shape.begin(), shape.end());
+    res[i].data_type = qrb_dtype;
   }
 
   return res;
@@ -413,11 +433,18 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vect
 {
   size_t element_cnt = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<size_t>());
 
-  if (get_tensor_data_type(tensor) != QNN_DATATYPE_FLOAT_32) {
-    QRB_WARNING("Input data type is not suppport!");
+  switch (get_tensor_data_type(tensor)) {
+    case QNN_DATATYPE_FLOAT_32:
+      return sizeof(float) * element_cnt;
+    case QNN_DATATYPE_FLOAT_64:
+      return sizeof(double) * element_cnt;
+    case QNN_DATATYPE_UINT_8:
+    case QNN_DATATYPE_INT_8:
+      return sizeof(uint8_t) * element_cnt;
+    default:
+      QRB_WARNING("Input data type is not suppport!");
+      return sizeof(int8_t) * element_cnt;
   }
-
-  return sizeof(float) * element_cnt;
 }
 
 /// @brief allocate buffer for tensor data

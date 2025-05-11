@@ -68,7 +68,7 @@ void QrbRosInferenceNode::publish_msg(custom_msg::TensorList pub_tensors)
 
   for (auto rt : result_tensors) {
     custom_msg::Tensor tensor;
-    tensor.data_type = static_cast<int>(TensorDataType::FLOAT32);
+    tensor.data_type = rt.data_type;
     tensor.name = rt.output_tensor_name;
     tensor.shape = rt.output_tensor_shape;
     tensor.data = rt.output_tensor_data;
