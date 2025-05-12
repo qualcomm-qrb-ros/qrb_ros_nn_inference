@@ -28,8 +28,8 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
 ```bash
     cd ${QRB_ROS_WS}/src && \
-    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_tensor_list_msgs.git && \
-    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference.git
+    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces && \
+    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference
 ```
 
 3. build qrb_ros_nn_inference
@@ -84,7 +84,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
       cd ${QRB_ROS_WS}/ && \
       rm ./src/qrb_ros_nn_inference/test/qrb_ros_post_process/COLCON_IGNORE && \
       rm ./src/qrb_ros_nn_inference/test/qrb_ros_pre_process/COLCON_IGNORE && \
-      colcon build --symlink-install --packages-select qrb_ros_pre_process qrb_ros_post_process
+      colcon build --packages-select qrb_ros_pre_process qrb_ros_post_process
     ```
 
     4.5 execute the inference
@@ -118,7 +118,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
         mdkir -p <qirp_decompressed_workspace>/qirp-sdk/ros_ws/src && \
         cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/src && \
         git clone https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces && \
-        git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference.git
+        git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference
     ```
 
 3. prepare your pre and post process node
@@ -137,12 +137,34 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
         -DCMAKE_TOOLCHAIN_FILE=${OE_CMAKE_TOOLCHAIN_FILE}
     ```
 
+5. install the qrb_ros_nn_inference package on your device:
+
+    ```bash
+        cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/install/qrb_ros_nn_inference && \
+        tar -czvf qrb_ros_nn_inference.tar.gz include lib share && \
+        scp qrb_ros_nn_inference.tar.gz root@[ip-addr]:/opt && \
+        cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/install/qrb_inference_manager && \
+        tar -czvf qrb_inference_manager.tar.gz include lib share && \
+        scp qrb_inference_manager.tar.gz root@[ip-addr]:/opt && \
+        cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/install/qrb_ros_tensor_list_msgs && \
+        tar -czvf qrb_ros_tensor_list_msgs.tar.gz include lib share && \
+        scp qrb_ros_tensor_list_msgs.tar.gz root@[ip-addr]:/opt
+    ```
+
+    ```bash
+        ssh root@[ip-addr]
+        (ssh) mount -o remount rw /usr
+        (ssh) tar --no-overwrite-dir --no-same-owner -zxf /opt/qrb_ros_tensor_list_msgs.tar.gz -C /usr/
+        (ssh) tar --no-overwrite-dir --no-same-owner -zxf /opt/qrb_inference_manager.tar.gz -C /usr/
+        (ssh) tar --no-overwrite-dir --no-same-owner -zxf /opt/qrb_ros_nn_inference.tar.gz -C /usr/
+    ```
+
 5. source this file to set up the environment on your device:
 
     ```bash
         ssh root@[ip-addr]
         (ssh) export HOME=/opt
-        (ssh) source /opt/qcom/qirp-sdk/qirp-setup.sh
+        (ssh) source /usr/bin/ros_setup.bash
         (ssh) export ROS_DOMAIN_ID=xx
         (ssh) source /usr/bin/ros_setup.bash
     ```
