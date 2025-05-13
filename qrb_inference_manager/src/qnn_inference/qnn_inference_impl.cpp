@@ -238,7 +238,7 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_dat
   return StatusCode::SUCCESS;
 }
 
-int32_t QnnDTypeToQrbDtype(Qnn_DataType_t data_type)
+int32_t QnnTensor::qnn_dtype_to_qrb_dtype(Qnn_DataType_t data_type)
 {
   switch (data_type) {
     case QNN_DATATYPE_UINT_8:
@@ -250,7 +250,7 @@ int32_t QnnDTypeToQrbDtype(Qnn_DataType_t data_type)
     case QNN_DATATYPE_FLOAT_64:
       return 3;
     default:
-      QRB_WARNING("Input data type is not suppport!");
+      QRB_ERROR("Input data type is not suppport!");
       return -1;
   }
 }
@@ -274,7 +274,7 @@ std::vector<OutputTensor> QnnTensor::read_output_tensors(const uint32_t number_o
       shape.emplace_back(get_tensor_dimensions(output)[i]);
     }
 
-    int32_t qrb_dtype = QnnDTypeToQrbDtype(get_tensor_data_type(output));
+    int32_t qrb_dtype = qnn_dtype_to_qrb_dtype(get_tensor_data_type(output));
     if (qrb_dtype == -1) {
       QRB_ERROR("The Qnn data type (,", get_tensor_data_type(output),
           ") of output tensor is not supported!");
@@ -439,8 +439,9 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vect
     case QNN_DATATYPE_FLOAT_64:
       return sizeof(double) * element_cnt;
     case QNN_DATATYPE_UINT_8:
-    case QNN_DATATYPE_INT_8:
       return sizeof(uint8_t) * element_cnt;
+    case QNN_DATATYPE_INT_8:
+      return sizeof(int8_t) * element_cnt;
     default:
       QRB_WARNING("Input data type is not suppport!");
       return sizeof(int8_t) * element_cnt;
