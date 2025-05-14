@@ -238,7 +238,7 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_dat
   return StatusCode::SUCCESS;
 }
 
-int32_t QnnTensor::qnn_dtype_to_qrb_dtype(Qnn_DataType_t data_type)
+int32_t QnnTensor::qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type)
 {
   switch (data_type) {
     case QNN_DATATYPE_UINT_8:

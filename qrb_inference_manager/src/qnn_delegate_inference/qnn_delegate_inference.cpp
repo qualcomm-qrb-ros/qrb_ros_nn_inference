@@ -97,7 +97,7 @@ StatusCode QnnDelegateInference::inference_graph_init()
 
 StatusCode QnnDelegateInference::inference_execute(const std::vector<uint8_t> & input_tensor_data)
 {
-  auto tflite_dtype_to_qrb_dtype = [](TfLiteType tflite_dtype) -> int32_t {
+  auto tflite_dtype_to_qrb_dtype = [](const TfLiteType & tflite_dtype) -> int32_t {
     switch (tflite_dtype) {
       case kTfLiteUInt8:
         return 0;
