@@ -5,7 +5,6 @@
 
 #include <filesystem>
 #include <fstream>
-#include <opencv2/opencv.hpp>
 
 namespace qrb_ros::pre_process
 {
@@ -43,19 +42,18 @@ void QrbRosPreProcessNode::init(std::string image_path)
     tensor.name = "input_tensor";
     tensor.shape = std::vector<uint32_t>{ 640, 640, 3 };
 
-    cv::Mat img = cv::imread(image_path);
-    cv::resize(img, img, cv::Size(640, 640), 0, 0, cv::INTER_AREA);
-    img.convertTo(img, CV_32F, 1.0 / 255.0);
+    std::ifstream file(image_path, std::ios::binary);
+    if (!file.is_open()) {
+      RCLCPP_ERROR(this->get_logger(), "Failed to open image file: %s", image_path.c_str());
+         }
 
-    std::vector<uint8_t> img_data;
-    if (img.isContinuous()) {
-      img_data.assign((uint8_t *)img.datastart, (uint8_t *)img.dataend);
-    } else {
-      for (int i = 0; i < img.rows; ++i) {
-        img_data.insert(img_data.end(), img.ptr<uint8_t>(i),
-            img.ptr<uint8_t>(i) + img.cols * img.channels() * sizeof(float));
-      }
-    }
+    file.seekg(0, std::ios::end);
+    size_t file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    std::vector<uint8_t> img_data(file_size);
+    file.read(reinterpret_cast<char *>(img_data.data()), file_size);
+    file.close();
 
     tensor.data = std::move(img_data);
     msg.tensor_list.emplace_back(tensor);
