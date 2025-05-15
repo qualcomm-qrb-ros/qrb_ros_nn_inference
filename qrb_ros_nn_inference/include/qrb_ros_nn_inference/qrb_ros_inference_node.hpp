@@ -15,14 +15,6 @@ namespace qrb_ros::nn_inference
 
 namespace custom_msg = qrb_ros_tensor_list_msgs::msg;
 
-enum class TensorDataType
-{
-  UINT8,
-  INT8,
-  FLOAT32,
-  FLOAT64,
-};
-
 class QrbRosInferenceNode : public rclcpp::Node
 {
 public:

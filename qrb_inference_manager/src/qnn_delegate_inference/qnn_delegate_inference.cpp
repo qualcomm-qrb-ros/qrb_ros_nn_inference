@@ -108,14 +108,14 @@ StatusCode QnnDelegateInference::inference_execute(const std::vector<uint8_t> & 
       case kTfLiteFloat64:
         return 3;
       default:
-        QRB_ERROR("The tflite data type (", tflite_dtype, ") of output tensor is not supported!");
         return -1;
     }
   };
+
   auto input_tensor = this->interpreter_->tensor(this->interpreter_->inputs()[0]);
 
-  if (input_tensor->type != kTfLiteFloat32) {
-    QRB_ERROR("The data type of input tensor need to be FLOAT32!");
+  if (-1 == tflite_dtype_to_qrb_dtype(input_tensor->type)) {
+    QRB_ERROR("The input data type of model is NOT supported");
     return StatusCode::FAILURE;
   }
 
@@ -138,6 +138,7 @@ StatusCode QnnDelegateInference::inference_execute(const std::vector<uint8_t> & 
     OutputTensor output_tensor;
     output_tensor.data_type = tflite_dtype_to_qrb_dtype(result_tensor->type);
     if (output_tensor.data_type == -1) {
+      QRB_ERROR("The output data type of model is NOT supported");
       return StatusCode::FAILURE;
     }
 

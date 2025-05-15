@@ -128,7 +128,7 @@ public:
 private:
   std::vector<size_t> get_tensor_shape(const Qnn_Tensor_t * tensor);
   uint32_t get_tensor_size(const Qnn_Tensor_t * tensor, const std::vector<size_t> shape);
-  StatusCode allocate_tensor_buf(void *& data, const std::vector<size_t> shape);
+  StatusCode allocate_tensor_buf(void *& data, Qnn_DataType_t tensor_data_type, uint32_t buf_size);
   void check_tensor_version(const Qnn_Tensor_t * tensor);
   int32_t qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type);
 
