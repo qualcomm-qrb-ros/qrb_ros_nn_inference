@@ -48,6 +48,7 @@ struct OutputTensor
   std::vector<uint8_t> output_tensor_data;
   std::string output_tensor_name;
   std::vector<uint32_t> output_tensor_shape;
+  int32_t data_type;
 };
 
 class QrbInference

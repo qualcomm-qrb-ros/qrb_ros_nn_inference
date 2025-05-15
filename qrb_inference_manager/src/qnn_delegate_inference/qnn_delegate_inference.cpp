@@ -97,6 +97,21 @@ StatusCode QnnDelegateInference::inference_graph_init()
 
 StatusCode QnnDelegateInference::inference_execute(const std::vector<uint8_t> & input_tensor_data)
 {
+  auto tflite_dtype_to_qrb_dtype = [](const TfLiteType & tflite_dtype) -> int32_t {
+    switch (tflite_dtype) {
+      case kTfLiteUInt8:
+        return 0;
+      case kTfLiteInt8:
+        return 1;
+      case kTfLiteFloat32:
+        return 2;
+      case kTfLiteFloat64:
+        return 3;
+      default:
+        QRB_ERROR("The tflite data type (", tflite_dtype, ") of output tensor is not supported!");
+        return -1;
+    }
+  };
   auto input_tensor = this->interpreter_->tensor(this->interpreter_->inputs()[0]);
 
   if (input_tensor->type != kTfLiteFloat32) {
@@ -121,11 +136,14 @@ StatusCode QnnDelegateInference::inference_execute(const std::vector<uint8_t> & 
   for (size_t i = 0; i < this->interpreter_->outputs().size(); i++) {
     auto result_tensor = this->interpreter_->output_tensor(i);
     OutputTensor output_tensor;
+    output_tensor.data_type = tflite_dtype_to_qrb_dtype(result_tensor->type);
+    if (output_tensor.data_type == -1) {
+      return StatusCode::FAILURE;
+    }
 
     output_tensor.output_tensor_name = result_tensor->name;
-
     output_tensor.output_tensor_data = std::vector<uint8_t>(result_tensor->bytes);
-    memcpy(output_tensor.output_tensor_data.data(), result_tensor->data.f,
+    memcpy(output_tensor.output_tensor_data.data(), result_tensor->data.raw,
         result_tensor->bytes);  // reinterpret_cast<uint8_t*>
 
     for (auto j = 0; j < result_tensor->dims->size; j++) {
