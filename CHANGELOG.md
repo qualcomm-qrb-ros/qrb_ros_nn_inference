@@ -33,3 +33,8 @@
 
 - fix bug during copy_graph_info()
 - Contributors👉 Na Song
+
+## 0.4.0 (2025-05-15)
+
+- Support more data type for output tensor
+- Contributors👉 Xiao Li

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(qrb_inference_manager VERSION 0.2.0)
+project(qrb_inference_manager VERSION 0.4.0)
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
@@ -12,14 +12,8 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
-if(NOT DEFINED ENV{TENSORFLOW_SOURCE_DIR})
-  set(ENV{TENSORFLOW_SOURCE_DIR} "/opt/tensorflow")
-endif()
-
 include_directories(
   include
-  $ENV{TENSORFLOW_SOURCE_DIR}
-  $ENV{TENSORFLOW_SOURCE_DIR}/tflite-build/flatbuffers/include/
 )
 
 set(SOURCES
