@@ -45,7 +45,7 @@ void QrbRosPreProcessNode::init(std::string image_path)
     std::ifstream file(image_path, std::ios::binary);
     if (!file.is_open()) {
       RCLCPP_ERROR(this->get_logger(), "Failed to open image file: %s", image_path.c_str());
-         }
+    }
 
     file.seekg(0, std::ios::end);
     size_t file_size = file.tellg();

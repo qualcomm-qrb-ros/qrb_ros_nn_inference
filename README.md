@@ -41,17 +41,17 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
 4. test qrb_ros_nn_inference with YOLOv8 detection model
 
-    4.1 download model from [QC AI hub](https://aihub.qualcomm.com/iot/models/yolov8_det?domain=Computer+Vision&useCase=Object+Detection).
+    4.1 download yolov8.tflite model by following [QC AI hub Getting Started](https://app.aihub.qualcomm.com/docs/hub/getting_started.html).
 
     4.2 download the test image for object detecion
 
     ```bash
-    wget -P \
-    ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/ \
-    https://ultralytics.com/images/bus.jpg
+    wget -P ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/ \
+    https://ultralytics.com/images/bus.jpg && \
+    python3 ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/yolov8_input_pre_process.py
     ```
 
-    4.3 point out the image path and model path in `${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/launch/nn_node_test.launch.py`
+    4.3 point out the raw image path and model path in `${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/launch/nn_node_test.launch.py`
 
     ```python
     pre_process_node = ComposableNode(
@@ -60,7 +60,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
        name = "pre_process_node",
        parameters=[
          {
-           "image_path": os.environ['QRB_ROS_WS']+"/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.jpg"
+           "image_path": os.environ['QRB_ROS_WS']+"/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.raw"
          }
        ]
     )
@@ -98,7 +98,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
     4.6 visualize the detection result
 
     ```bash
-      python3 ./src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/qrb_ros_yolo_detection_visualizer.py \
+      python3 ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/qrb_ros_yolo_detection_visualizer.py \
       --original_image ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/image.jpg
     ```
 
@@ -166,7 +166,6 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
         (ssh) export HOME=/opt
         (ssh) source /usr/bin/ros_setup.bash
         (ssh) export ROS_DOMAIN_ID=xx
-        (ssh) source /usr/bin/ros_setup.bash
     ```
 
 6. launch your inference pipeline

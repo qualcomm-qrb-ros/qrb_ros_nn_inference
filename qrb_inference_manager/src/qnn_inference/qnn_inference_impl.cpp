@@ -193,7 +193,8 @@ StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
 
     Qnn_ClientBuffer_t tensor_buf = QNN_CLIENT_BUFFER_INIT;
     tensor_buf.dataSize = get_tensor_size(tensor + i, tensor_shape);
-    if (StatusCode::SUCCESS != allocate_tensor_buf(tensor_buf.data, get_tensor_data_type(tensor), tensor_buf.dataSize)) {
+    if (StatusCode::SUCCESS !=
+        allocate_tensor_buf(tensor_buf.data, get_tensor_data_type(tensor), tensor_buf.dataSize)) {
       return StatusCode::FAILURE;
     }
 
@@ -449,7 +450,9 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vect
 /// @param data pointer point to tensor data buffer
 /// @param shape shape of tensor
 /// @return SUCCESS or FAILURE
-StatusCode QnnTensor::allocate_tensor_buf(void *& data, Qnn_DataType_t tensor_data_type, uint32_t buf_size)
+StatusCode QnnTensor::allocate_tensor_buf(void *& data,
+    Qnn_DataType_t tensor_data_type,
+    uint32_t buf_size)
 {
   switch (tensor_data_type) {
     case QNN_DATATYPE_FLOAT_32:
