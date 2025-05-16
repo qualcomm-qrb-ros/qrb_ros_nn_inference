@@ -192,11 +192,11 @@ StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
     set_tensor_mem_type(tensor + i, QNN_TENSORMEMTYPE_RAW);
 
     Qnn_ClientBuffer_t tensor_buf = QNN_CLIENT_BUFFER_INIT;
-
-    if (StatusCode::SUCCESS != allocate_tensor_buf(tensor_buf.data, tensor_shape)) {
+    tensor_buf.dataSize = get_tensor_size(tensor + i, tensor_shape);
+    if (StatusCode::SUCCESS !=
+        allocate_tensor_buf(tensor_buf.data, get_tensor_data_type(tensor), tensor_buf.dataSize)) {
       return StatusCode::FAILURE;
     }
-    tensor_buf.dataSize = get_tensor_size(tensor + i, tensor_shape);
 
     set_tensor_client_buf(tensor + i, tensor_buf);
   }
@@ -218,7 +218,7 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_dat
     shape.emplace_back(get_tensor_dimensions(inputs)[i]);
   }
 
-  if (get_tensor_data_type(inputs) == QNN_DATATYPE_FLOAT_32) {  // now only support FLOAT32
+  if (-1 != qnn_dtype_to_qrb_dtype(get_tensor_data_type(inputs))) {
     size_t tensor_size = get_tensor_size(inputs, shape);
 
     if (tensor_size != input_data.size()) {
@@ -231,7 +231,7 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_dat
     memcpy(static_cast<char *>(get_tensor_client_buf(inputs).data), input_data.data(),
         input_data.size());
   } else {
-    QRB_ERROR("Input tensor data type not support!");
+    QRB_ERROR("Input data type of model is not suppport!");
     return StatusCode::FAILURE;
   }
 
@@ -250,7 +250,6 @@ int32_t QnnTensor::qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type)
     case QNN_DATATYPE_FLOAT_64:
       return 3;
     default:
-      QRB_ERROR("Input data type is not suppport!");
       return -1;
   }
 }
@@ -276,8 +275,7 @@ std::vector<OutputTensor> QnnTensor::read_output_tensors(const uint32_t number_o
 
     int32_t qrb_dtype = qnn_dtype_to_qrb_dtype(get_tensor_data_type(output));
     if (qrb_dtype == -1) {
-      QRB_ERROR("The Qnn data type (,", get_tensor_data_type(output),
-          ") of output tensor is not supported!");
+      QRB_ERROR("Output data type of model is not suppport!");
       return std::vector<OutputTensor>();
     }
 
@@ -443,8 +441,8 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vect
     case QNN_DATATYPE_INT_8:
       return sizeof(int8_t) * element_cnt;
     default:
-      QRB_WARNING("Input data type is not suppport!");
-      return sizeof(int8_t) * element_cnt;
+      QRB_ERROR("Data type is not suppport! get_tensor_size may fail!");
+      return sizeof(uint8_t) * element_cnt;
   }
 }
 
@@ -452,14 +450,33 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vect
 /// @param data pointer point to tensor data buffer
 /// @param shape shape of tensor
 /// @return SUCCESS or FAILURE
-StatusCode QnnTensor::allocate_tensor_buf(void *& data, const std::vector<size_t> shape)
+StatusCode QnnTensor::allocate_tensor_buf(void *& data,
+    Qnn_DataType_t tensor_data_type,
+    uint32_t buf_size)
 {
-  size_t element_cnt = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<size_t>());
-  data = (float *)malloc(element_cnt * sizeof(float));  // default is float
+  switch (tensor_data_type) {
+    case QNN_DATATYPE_FLOAT_32:
+      data = (float *)malloc(buf_size);
+      break;
+    case QNN_DATATYPE_FLOAT_64:
+      data = (double *)malloc(buf_size);
+      break;
+    case QNN_DATATYPE_UINT_8:
+      data = (uint8_t *)malloc(buf_size);
+      break;
+    case QNN_DATATYPE_INT_8:
+      data = (int8_t *)malloc(buf_size);
+      break;
+    default:
+      QRB_WARNING("Data type is not suppport! allocate_tensor_buf may fail!");
+      data = (uint8_t *)malloc(buf_size);
+      break;
+  }
 
   if (data == nullptr) {
     return StatusCode::FAILURE;
   }
+
   return StatusCode::SUCCESS;
 }
 

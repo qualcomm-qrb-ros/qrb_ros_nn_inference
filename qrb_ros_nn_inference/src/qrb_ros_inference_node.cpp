@@ -41,22 +41,16 @@ void QrbRosInferenceNode::subscription_callback(const custom_msg::TensorList & m
   RCLCPP_INFO(this->get_logger(), "Got model input data, start executing inference...");
 
   const auto input_tensor = (msg.tensor_list)[0];
-
-  if (static_cast<int>(TensorDataType::FLOAT32) == input_tensor.data_type) {  // only support
-                                                                              // float32
-    if (false == this->qrb_inference_mgr_->inference_execute(input_tensor.data)) {
-      RCLCPP_ERROR(this->get_logger(), "Inference execute fail!");
-      rclcpp::shutdown();
-    }
-
-    RCLCPP_INFO(this->get_logger(), "Inference execute successfully!");
-
-    custom_msg::TensorList pub_tensors;
-    pub_tensors.header = msg.header;
-    this->publish_msg(pub_tensors);
-  } else {
-    RCLCPP_ERROR(this->get_logger(), "Input tensor data type not support!");
+  if (false == this->qrb_inference_mgr_->inference_execute(input_tensor.data)) {
+    RCLCPP_ERROR(this->get_logger(), "Inference execute fail!");
+    rclcpp::shutdown();
   }
+
+  RCLCPP_INFO(this->get_logger(), "Inference execute successfully!");
+
+  custom_msg::TensorList pub_tensors;
+  pub_tensors.header = msg.header;
+  this->publish_msg(pub_tensors);
 }
 
 /**

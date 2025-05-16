@@ -38,3 +38,8 @@
 
 - Support more data type for output tensor
 - Contributors👉 Xiao Li
+
+## 0.5.0 (2025-05-16)
+
+- Support more data type for input tensor
+- Contributors👉 Na Song
