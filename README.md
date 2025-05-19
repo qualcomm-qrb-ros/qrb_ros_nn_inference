@@ -1,13 +1,14 @@
 # QRB ROS NN Inference
-![Static Badge](https://img.shields.io/badge/language-Cpp-green)
-![Static Badge](https://img.shields.io/badge/executor-CPU_GPU_HTP-orange)
-![Static Badge](https://img.shields.io/badge/release-v0.2.0-blue)
+![Static Badge](https://img.shields.io/badge/Executor-CPU_GPU_HTP-orange)
+![Static Badge](https://img.shields.io/badge/Platform-QCLinux-blue)
 
 🎉 Explore your AI robot applications on Qualcomm devices!
 
 ## 🙋‍♂️ Overview
 
 **qrb_ros_nn_inference** is a ROS2 package for performing neural network model, providing 🤖AI-based perception for robotics applications.<br>
+
+> WARNING: The inference of TFLite model is NOT supported on version 1.0.0-jazzy.
 
 qrb_ros_nn_inference support:
 - 🚀hardware acceleration based on Qualcomm platforms
@@ -99,7 +100,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
 
     ```bash
       python3 ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/qrb_ros_yolo_detection_visualizer.py \
-      --original_image ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/image.jpg
+      --original_image ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.jpg
     ```
 
     reulst image will be stroed in `${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result`
