@@ -66,7 +66,7 @@ void QrbRosInferenceNode::publish_msg(custom_msg::TensorList pub_tensors)
     tensor.name = rt.output_tensor_name;
     tensor.shape = rt.output_tensor_shape;
     tensor.data = rt.output_tensor_data;
-    pub_tensors.tensor_list.emplace_back(tensor);
+    pub_tensors.tensor_list.emplace_back(std::move(tensor));
   }
 
   RCLCPP_INFO(this->get_logger(), "Publish the inference result...");
