@@ -1,0 +1,12 @@
+Source: ros-jazzy-qrb-inference-manager
+Section: misc
+Priority: optional
+Maintainer: Na Song <quic_nasong@quicinc.com>
+Build-Depends: debhelper (>= 9.0.0), libqnn-dev, libqnn1, libtensorflow-lite-c-qcom1, libtensorflow-lite-qcom-dev, ros-jazzy-ament-cmake-auto, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-qrb-inference-manager
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libqnn-dev, libqnn1, libtensorflow-lite-c-qcom1, libtensorflow-lite-qcom-dev
+Description: Dependency library of qrb_ros_nn_inference

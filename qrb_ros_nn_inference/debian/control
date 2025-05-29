@@ -1,0 +1,12 @@
+Source: ros-jazzy-qrb-ros-nn-inference
+Section: misc
+Priority: optional
+Maintainer: Na Song <quic_nasong@quicinc.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake-auto, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-qrb-inference-manager, ros-jazzy-qrb-ros-tensor-list-msgs, ros-jazzy-rclcpp, ros-jazzy-rclcpp-components, ros-jazzy-rcutils
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-qrb-ros-nn-inference
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-qrb-inference-manager, ros-jazzy-qrb-ros-tensor-list-msgs, ros-jazzy-rclcpp, ros-jazzy-rclcpp-components, ros-jazzy-rcutils
+Description: Package for model inference

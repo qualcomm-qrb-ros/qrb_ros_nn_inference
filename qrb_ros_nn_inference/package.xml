@@ -9,6 +9,7 @@ schematypens="http://www.w3.org/2001/XMLSchema"?>
   <license>BSD-3-Clause-Clear</license>
 
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
+
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>rcutils</depend>
