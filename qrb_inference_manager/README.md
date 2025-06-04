@@ -20,10 +20,13 @@ qrb_inference_manager use the feature of C17, please ensure your Cpp environment
 
 > the version of QNN SDK should ideally be greater than or equal to 2.24.1.240626
 
+<details>
+<summary>Install QNN SDK manually</summary>
+
 download QNN SDK:
 
 ```bash
-export QNN_SDK_VER="2.27.0.240926" && wget -P /opt/qcom https://softwarecenter.qualcomm.com/api/download/software/qualcomm_neural_processing_sdk/v${QNN_SDK_VER}.zip
+export QNN_SDK_VER="2.31.0.250130" && wget -P /opt/qcom https://softwarecenter.qualcomm.com/api/download/software/qualcomm_neural_processing_sdk/v${QNN_SDK_VER}.zip
 ```
 
 copy the dependency:
@@ -38,20 +41,47 @@ cp -R /opt/qcom/qnn_sdk_v${QNN_SDK_VER}/qairt/${QNN_SDK_VER}/include/QNN/* /usr/
 rm -rf /opt/qcom/qnn_sdk_v${QNN_SDK_VER} && \
 ```
 
+</details>
+
+<details>
+<summary>Install QNN SDK with on Ubuntu24.04</summary>
+
+```bash
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-noble-ppa && \
+sudo apt update && \
+sudo apt install -y libqnn-dev libqnn1
+```
+
+</details>
+
 ## TensorFlow
 
-> the version of TensorFlow should ideally be greater than or equal to 2.15.0
+> the version of TensorFlow should ideally be greater than or equal to 2.16.0
+
+<details>
+<summary>Install TensorFlowLite manually</summary>
 
 download and build TensorFlow source code:
 
 ```bash
 git clone --branch v2.16.1 https://github.com/tensorflow/tensorflow.git /opt/tensorflow && \
-export TENSORFLOW_SOURCE_DIR="/opt/tensorflow" && cd $TENSORFLOW_SOURCE_DIR && \
 mkdir tflite-build && cd tflite-build && \
 cmake ../tensorflow/lite/c && \
 cmake --build . -j8 && \
 cp ./libtensorflowlite_c.so /usr/local/lib
 ```
+</details>
+
+<details>
+<summary>Install TensorFlowLite on Ubuntu24.04</summary>
+
+```bash
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-noble-ppa && \
+sudo apt update && \
+sudo apt install -y libtensorflow-lite-c-qcom1 libtensorflow-lite-qcom-dev
+```
+
+</details>
 
 # Use qrb_inference_manager in your C++ project
 
@@ -68,6 +98,6 @@ add_subdirectory(
   "${CMAKE_CURRENT_BINARY_DIR}/qrb_inference_manager" EXCLUDE_FROM_ALL)
 
 include_directories(
-  /path/to/qrb_inference_manager/include
+  $ENV{QRB_INFERENCE_MANAGER_SOURCE_DIR}/include
 )
 ```
