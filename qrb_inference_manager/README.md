@@ -61,15 +61,22 @@ sudo apt install -y libqnn-dev libqnn1
 <details>
 <summary>Install TensorFlowLite manually</summary>
 
-download and build TensorFlow source code:
+build TFLite lib:
 
 ```bash
 git clone --branch v2.16.1 https://github.com/tensorflow/tensorflow.git /opt/tensorflow && \
-mkdir tflite-build && cd tflite-build && \
+cd /opt/tensorflow && mkdir tflite-build && cd tflite-build && \
 cmake ../tensorflow/lite/c && \
 cmake --build . -j8 && \
 cp ./libtensorflowlite_c.so /usr/local/lib
 ```
+
+export the path of TFLite head files:
+
+```bash
+export CPLUS_INCLUDE_PATH=/opt/tensorflow:/opt/tensorflow/tflite-build/flatbuffers/include
+```
+
 </details>
 
 <details>
