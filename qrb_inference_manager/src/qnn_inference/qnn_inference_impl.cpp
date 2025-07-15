@@ -243,6 +243,8 @@ int32_t QnnTensor::qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type)
   switch (data_type) {
     case QNN_DATATYPE_UINT_8:
       return 0;
+    case QNN_DATATYPE_UFIXED_POINT_8:
+      return 0;
     case QNN_DATATYPE_INT_8:
       return 1;
     case QNN_DATATYPE_FLOAT_32:
@@ -438,6 +440,8 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vect
       return sizeof(double) * element_cnt;
     case QNN_DATATYPE_UINT_8:
       return sizeof(uint8_t) * element_cnt;
+    case QNN_DATATYPE_UFIXED_POINT_8:
+      return sizeof(uint8_t) * element_cnt;
     case QNN_DATATYPE_INT_8:
       return sizeof(int8_t) * element_cnt;
     default:
@@ -460,6 +464,9 @@ StatusCode QnnTensor::allocate_tensor_buf(void *& data,
       break;
     case QNN_DATATYPE_FLOAT_64:
       data = (double *)malloc(buf_size);
+      break;
+    case QNN_DATATYPE_UFIXED_POINT_8:
+      data = (uint8_t *)malloc(buf_size);
       break;
     case QNN_DATATYPE_UINT_8:
       data = (uint8_t *)malloc(buf_size);
