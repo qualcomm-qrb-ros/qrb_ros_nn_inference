@@ -5,11 +5,10 @@ schematypens="http://www.w3.org/2001/XMLSchema"?>
   <name>qrb_ros_nn_inference</name>
   <version>0.1.1</version>
   <description>Package for model inference</description>
-  <maintainer email="nasong@qti.qualcomm.com">Na Song</maintainer>
+  <maintainer email="quic_nasong@quicinc.com">Na Song</maintainer>
   <license>BSD-3-Clause-Clear</license>
 
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
-
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>rcutils</depend>
