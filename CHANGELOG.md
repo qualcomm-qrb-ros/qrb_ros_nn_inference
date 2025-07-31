@@ -36,15 +36,20 @@
 
 ## 0.4.0 (2025-05-15)
 
-- support more data type for output tensor
+- support more data type(uint8) for output tensor
 - Contributors👉 Xiao Li
 
 ## 0.5.0 (2025-05-16)
 
-- support more data type for input tensor
+- support more data type(uint8) for input tensor
 - Contributors👉 Na Song
 
 ## 1.0.0-jazzy (2025-05-19)
 
 - first release on QCLinux based on ROS2 Jazzy
+- Contributors👉 Na Song
+
+## 1.1.0-jazzy (2025-07-31)
+
+- support Ubuntu
 - Contributors👉 Na Song

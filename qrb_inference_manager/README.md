@@ -3,7 +3,7 @@
 ![Static Badge](https://img.shields.io/badge/language-Cpp-green)
 ![Static Badge](https://img.shields.io/badge/executor-CPU_GPU_HTP-orange)
 
-qrb_inference_manager is a wrapper library of the QNN SDK and QNN Delegate SDK.<br>
+qrb_inference_manager encapsulates the APIs of [Qualcomm AI Engine Direct](https://docs.qualcomm.com/bundle/publicresource/topics/80-63442-50/overview.html) and [QNN Delegate for TensorFlow Lite](https://docs.qualcomm.com/bundle/publicresource/topics/80-63442-2/overview.html).<br>
 
 qrb_inference_manager provides a simple and user-friendly interface, supporting 🚀**real-time** inference for models in so, tflite, and bin formats.
 

@@ -90,7 +90,7 @@ def main():
         help()
         exit(1)
 
-    result_dir = os.environ['QRB_ROS_WS'] + "/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result/"
+    result_dir = os.environ['HOME'] + "/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result/"
     if not os.path.exists(result_dir):
         print(f"{result_dir} is not exit!")
         exit(1)
@@ -107,7 +107,12 @@ def main():
 
     # visualization and save result
     draw_boxes(orig_img, final_data)
-    cv2.imwrite(result_dir + "detection_result.jpg", orig_img)
+    output_path = result_dir + "detection_result.jpg"
+    success = cv2.imwrite(output_path, orig_img)
+    if success:
+        print(f"Image saved successfully to {output_path}")
+    else:
+        print(f"Failed to save image to {output_path}")
 
 if __name__ == "__main__":
     main()
