@@ -28,9 +28,9 @@ QrbRosPostProcessNode::~QrbRosPostProcessNode()
 
 void QrbRosPostProcessNode::subscription_callback(const custom_msg::TensorList & msg)
 {
-  std::string workspace = std::string{ std::getenv("QRB_ROS_WS") };
+  std::string workspace = std::string{ std::getenv("HOME") };
   std::string result_path{ workspace +
-                           "/src/qrb_ros_nn_inference/test/qrb_ros_post_process/"
+                           "/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/"
                            "inference_result/" };
 
   if (false == std::filesystem::exists(result_path)) {

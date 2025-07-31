@@ -1,58 +1,166 @@
-# QRB ROS NN Inference
-![Static Badge](https://img.shields.io/badge/Executor-CPU_GPU_HTP-orange)
-![Static Badge](https://img.shields.io/badge/Platform-QCLinux-blue)
+<div align="center">
+  <h1>QRB ROS NN Inference</h1>
+  <p align="center">
+   <img src="./docs/assets/qrb_ros_nn_inference.jpg">
+  </p>
+  <p>ROS2 package for performing neural network model</p>
+  <a href="https://ubuntu.com/download/qualcomm-iot" target="_blank"><img src="https://img.shields.io/badge/Qualcomm%20Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Qualcomm Ubuntu"></a>
+  <a href="https://docs.ros.org/en/jazzy/" target="_blank"><img src="https://img.shields.io/badge/ROS%20Jazzy-1c428a?style=for-the-badge&logo=ros&logoColor=white" alt="Jazzy"></a>
+</div>
 
-🎉 Explore your AI robot applications on Qualcomm devices!
+---
 
-## 🙋‍♂️ Overview
+## 👋 Overview
 
-**qrb_ros_nn_inference** is a ROS2 package for performing neural network model, providing 🤖AI-based perception for robotics applications.<br>
+**qrb_ros_nn_inference** is a ROS2 package for performing neural network model, providing 🤖AI-based perception for robotics applications. It provides:
+- ✨model inference API which supports three kinds of model format: **.tflite**, **.so**, **.bin**
+- 🚀model inference acceleration based on Qualcomm platforms
 
-> WARNING: The inference of TFLite model is NOT supported on version 1.0.0-jazzy.
+<div align="center">
+  <img src="./docs/assets/architecture.jpg" alt="architecture">
+</div>
 
-qrb_ros_nn_inference support:
-- 🚀hardware acceleration based on Qualcomm platforms
-- ✨three kinds of model format: **.tflite**, **.so**, **.bin**
+<br>
 
-## 🎬 Quick Start
+**qrb_ros_nn_inference** is a ROS2 package based on [qrb_inference_manager](./qrb_inference_manager/README.md) which is a C++ library encapsulates the APIs of [Qualcomm AI Engine Direct](https://docs.qualcomm.com/bundle/publicresource/topics/80-63442-50/overview.html) and [QNN Delegate for TensorFlow Lite](https://docs.qualcomm.com/bundle/publicresource/topics/80-63442-2/overview.html).
 
-> Quick start shown here is always latest.
+**qrb_ros_nn_inference** receives data from a specific topic, then without any processing, directly uses the received data for model inference. Afterwards, the results of the model inference are sent out directly through another specific topic.
 
-We provide two ways for running the QRB ROS packages on QCOM Linux platform.
+---
 
-<details>
-<summary>On-Device Compilation with Docker</summary>
+## 🔎 Table of Contents
+  * [APIs](#-apis)
+    * [`qrb_ros_nn_inference` APIs](#-qrb_ros_nn_inference-apis)
+    * [`qrb_inference_manager` APIs](#-qrb_inference_manager-apis)
+  * [Supported Targets](#-supported-targets)
+  * [Installation](#-installation)
+  * [Usage](#-usage)
+  * [Build from Source](#-build-from-source)
+  * [Contributing](#-contributing)
+  * [Contributors](#%EF%B8%8F-contributors-optional)
+  * [FAQs](#-faqs-optional)
+  * [License](#-license)
 
-1. please follow [steps](https://github.com/qualcomm-qrb-ros/qrb_ros_docker?tab=readme-ov-file#quickstart) to setup docker env.
+---
 
-2. download the qrb_ros_nn_inference and dependencies
+## ⚓ APIs
+
+### 🔹 `qrb_ros_nn_inference` APIs
+
+#### ROS node parameters
+
+<table>
+  <tr>
+    <th>Parameter</th>
+    <th>Type</th>
+    <th>Default Value</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>backend_option</td>
+    <td>string</td>
+    <td>""</td>
+    <td>Hardware acceleration option for model inference, vaild values are listed <a href="https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference/blob/main/qrb_inference_manager/Documentation.md#2.1" target="_blank">here</a></td>
+  </tr>
+  <tr>
+    <td>model_path</td>
+    <td>string</td>
+    <td>""</td>
+    <td>Path of model file</td>
+  </tr>
+</table>
+
+#### ROS topics
+
+<table>
+  <tr>
+    <th>Topic Name</th>
+    <th>Message Type</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>qrb_inference_input_tensor</td>
+    <td><a href="https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces/blob/main/qrb_ros_tensor_list_msgs/msg/TensorList.msg" target="_blank">TensorList</a></td>
+    <td>Subscribed topic</td>
+  </tr>
+  <tr>
+    <td>qrb_inference_output_tensor</td>
+    <td><a href="https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces/blob/main/qrb_ros_tensor_list_msgs/msg/TensorList.msg" target="_blank">TensorList</a></td>
+    <td>Published topic</td>
+  </tr>
+</table>
+
+### 🔹 `qrb_inference_manager` APIs
+
+Please see [qrb_inference_manager APIs](./qrb_inference_manager/Documentation.md).
+
+---
+
+## 🎯 Supported Targets
+
+<table >
+  <tr>
+    <th>Development Hardware</th>
+    <th>Hardware Overview</th>
+  </tr>
+  <tr>
+    <td>Qualcomm Dragonwing™ RB3 Gen2</td>
+    <th><a href="https://www.qualcomm.com/developer/hardware/rb3-gen-2-development-kit"><img src="https://s7d1.scene7.com/is/image/dmqualcommprod/rb3-gen2-carousel?fmt=webp-alpha&qlt=85" width="180"/></a></th>
+  </tr>
+    <tr>
+    <td>Qualcomm Dragonwing™ IQ-9075 EVK</td>
+    <th><a href="https://www.qualcomm.com/products/internet-of-things/industrial-processors/iq9-series/iq-9075"><img src="https://s7d1.scene7.com/is/image/dmqualcommprod/dragonwing-IQ-9075-EVK?$QC_Responsive$&fmt=png-alpha" width="160"></a></th>
+  </tr>
+</table>
+
+---
+
+## ✨ Installation
+
+> [!IMPORTANT]
+> **PREREQUISITES**: The following steps need to be run on **Qualcomm Ubuntu** and **ROS Jazzy**.<br>
+> Reference [Install Ubuntu on Qualcomm IoT Platforms](https://ubuntu.com/download/qualcomm-iot) and [Install ROS Jazzy](https://docs.ros.org/en/jazzy/index.html) to setup environment. <br>
+> For Qualcomm Linux, please check out the [Qualcomm Intelligent Robotics Product SDK](https://docs.qualcomm.com/bundle/publicresource/topics/80-70018-265/introduction_1.html?vproduct=1601111740013072&version=1.4&facet=Qualcomm%20Intelligent%20Robotics%20Product%20(QIRP)%20SDK) documents.
+
+Add Qualcomm IOT PPA for Ubuntu:
 
 ```bash
-    cd ${QRB_ROS_WS}/src && \
-    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces && \
-    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-noble-ppa
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qirp
+sudo apt update
 ```
 
-3. build qrb_ros_nn_inference
+Install Debian package:
 
 ```bash
-    cd ${QRB_ROS_WS} && \
-    colcon build --packages-up-to qrb_ros_nn_inference
+sudo apt install ros-jazzy-qrb-ros-nn-inference
 ```
 
-4. test qrb_ros_nn_inference with YOLOv8 detection model
+## 🚀 Usage
 
-    4.1 download yolov8.tflite model by following [QC AI hub Getting Started](https://app.aihub.qualcomm.com/docs/hub/getting_started.html).
+1. install the qrb_ros_nn_inference by steps above.
 
-    4.2 download the test image for object detecion
+2. prepare the pre-process node and post-process node for model inference
+
+  ```bash
+    # qrb_ros_nn_inference/test includes the pre-process node and post-process node
+    mkdir -p ~/ros-ws/src && cd ~/ros-ws/src && \
+    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference && \
+  ```
+
+3. test qrb_ros_nn_inference with YOLOv8 detection model
+
+    3.1 download yolov8.tflite model by following [QC AI hub Getting Started](https://app.aihub.qualcomm.com/docs/hub/getting_started.html).
+
+    3.2 download the test image for object detecion
 
     ```bash
-    wget -P ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/ \
+    wget -P ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/ \
     https://ultralytics.com/images/bus.jpg && \
-    python3 ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/yolov8_input_pre_process.py
+    python3 ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/yolov8_input_pre_process.py
     ```
 
-    4.3 point out the raw image path and model path in `${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/launch/nn_node_test.launch.py`
+    3.3 point out the raw image path and model path in `~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/launch/nn_node_test.launch.py`
 
     ```python
     pre_process_node = ComposableNode(
@@ -61,7 +169,7 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
        name = "pre_process_node",
        parameters=[
          {
-           "image_path": os.environ['QRB_ROS_WS']+"/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.raw"
+           "image_path": os.environ['HOME'] + "/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.raw"
          }
        ]
     )
@@ -79,121 +187,66 @@ We provide two ways for running the QRB ROS packages on QCOM Linux platform.
     )
     ```
 
-    4.4 build the pre and post process packages
+    3.4 build the pre-process node and post-process node
 
     ```bash
-      cd ${QRB_ROS_WS}/ && \
+      source source /opt/ros/jazzy/setup.bash && \
+      cd ~/ros-ws && \
       rm ./src/qrb_ros_nn_inference/test/qrb_ros_post_process/COLCON_IGNORE && \
       rm ./src/qrb_ros_nn_inference/test/qrb_ros_pre_process/COLCON_IGNORE && \
       colcon build --packages-select qrb_ros_pre_process qrb_ros_post_process
     ```
 
-    4.5 execute the inference
+    3.5 execute the inference
 
     ```bash
-      cd ${QRB_ROS_WS}/ && \
+      cd ~/ros-ws && \
       source install/local_setup.bash && \
       ros2 launch qrb_ros_post_process nn_node_test.launch.py
     ```
 
-    4.6 visualize the detection result
+    3.6 visualize the detection result
 
     ```bash
-      python3 ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/qrb_ros_yolo_detection_visualizer.py \
-      --original_image ${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.jpg
+      python3 ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/qrb_ros_yolo_detection_visualizer.py \
+      --original_image ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.jpg
     ```
 
-    reulst image will be stroed in `${QRB_ROS_WS}/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result`
+    reulst image will be stroed in `~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result`
 
-</details>
+---
 
+## 👨‍💻 Build from Source
 
-<details>
-<summary>Cross Compilation with QIRP SDK</summary>
+Install dependencies:
 
-1. please follow [steps](https://qualcomm-qrb-ros.github.io/getting_started/index.html) to setup qirp-sdk env.
+```bash
+sudo apt install -y software-properties-common
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-noble-ppa
+sudo apt update
+sudo apt install -y libtensorflow-lite-c-qcom1 libtensorflow-lite-qcom-dev libqnn-dev libqnn1
+```
 
-2. clone this repository and dependencies
+Download the source code and build with colcon:
 
-    ```bash
-        mdkir -p <qirp_decompressed_workspace>/qirp-sdk/ros_ws/src && \
-        cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/src && \
-        git clone https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces && \
-        git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference
-    ```
+```bash
+source /opt/ros/jazzy/setup.bash && \
+mkdir -p ~/ros-ws/src && \
+git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference ~/ros-ws/src && \
+git clone https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces ~/ros-ws/src && \
+cd ~/ros-ws/ && \
+colcon build --packages-select qrb_ros_nn_inference
+```
 
-3. prepare your pre and post process node
+---
 
-4. colcon build your pipeline:
+## 🤝 Contributing
 
-    ```bash
-      cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws && \
-      colcon build --cmake-args \
-        -DPYTHON_EXECUTABLE=${OECORE_NATIVE_SYSROOT}/usr/bin/python3 \
-        -DPython3_NumPy_INCLUDE_DIR=${OECORE_NATIVE_SYSROOT}/usr/lib/python3.12/site-packages/numpy/core/include \
-        -DPYTHON_SOABI=cpython-312-aarch64-linux-gnu \
-        -DCMAKE_MAKE_PROGRAM=/usr/bin/make \
-        -DCMAKE_LIBRARY_PATH=${OECORE_TARGET_SYSROOT}/usr/lib \
-        -DBUILD_TESTING=OFF \
-        -DCMAKE_TOOLCHAIN_FILE=${OE_CMAKE_TOOLCHAIN_FILE}
-    ```
+We love community contributions! Get started by reading our [CONTRIBUTING.md](CONTRIBUTING.md).
+Feel free to create an issue for bug report, feature requests or any discussion.
 
-5. install the qrb_ros_nn_inference package on your device:
+---
 
-    ```bash
-        cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/install/qrb_ros_nn_inference && \
-        tar -czvf qrb_ros_nn_inference.tar.gz include lib share && \
-        scp qrb_ros_nn_inference.tar.gz root@[ip-addr]:/opt && \
-        cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/install/qrb_inference_manager && \
-        tar -czvf qrb_inference_manager.tar.gz include lib share && \
-        scp qrb_inference_manager.tar.gz root@[ip-addr]:/opt && \
-        cd <qirp_decompressed_workspace>/qirp-sdk/ros_ws/install/qrb_ros_tensor_list_msgs && \
-        tar -czvf qrb_ros_tensor_list_msgs.tar.gz include lib share && \
-        scp qrb_ros_tensor_list_msgs.tar.gz root@[ip-addr]:/opt
-    ```
+## 📜 License
 
-    ```bash
-        ssh root@[ip-addr]
-        (ssh) mount -o remount rw /usr
-        (ssh) tar --no-overwrite-dir --no-same-owner -zxf /opt/qrb_ros_tensor_list_msgs.tar.gz -C /usr/
-        (ssh) tar --no-overwrite-dir --no-same-owner -zxf /opt/qrb_inference_manager.tar.gz -C /usr/
-        (ssh) tar --no-overwrite-dir --no-same-owner -zxf /opt/qrb_ros_nn_inference.tar.gz -C /usr/
-    ```
-
-5. source this file to set up the environment on your device:
-
-    ```bash
-        ssh root@[ip-addr]
-        (ssh) export HOME=/opt
-        (ssh) source /usr/bin/ros_setup.bash
-        (ssh) export ROS_DOMAIN_ID=xx
-    ```
-
-6. launch your inference pipeline
-
-    ```bash
-        (ssh) ros2 launch ${package_name} ${launch-file}
-    ```
-
-</details>
-
-You can get more details from [QRB ROS Documentation](https://qualcomm-qrb-ros.github.io/main/packages/qrb_ros_nn_inference/index.html).
-
-## 🙏 Contributing
-
-We so much would love to have you as a part of the QRB ROS community. Whether you are helping us fix bugs, proposing new features, improving our documentation, or spreading the word, please refer to our [contribution guidelines](./CONTRIBUTING.md) and [code of conduct](./CODE_OF_CONDUCT.md).
-
-- Bug report: If you see an error message or encounter failures, please create a [bug report](../../issues)
-- Feature Request: If you have an idea or if there is a capability that is missing and would make development easier and more robust, please submit a [feature request](../../issues)
-
-<Update link with template>
-
-## 👨‍💻 Authors
-
-* **Na Song** - *Initial work* - [@nasongCool](https://github.com/nasongCool)
-
-See also the list of [contributors](https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference/graphs/contributors) who participated in this project.
-
-## 📃 License
-
-Project is licensed under the [BSD-3-clause License](https://spdx.org/licenses/BSD-3-Clause.html). See [LICENSE](./LICENSE) for the full license text.
+Project is licensed under the [BSD-3-Clause](https://spdx.org/licenses/BSD-3-Clause.html) License. See [LICENSE](./LICENSE) for the full license text.
