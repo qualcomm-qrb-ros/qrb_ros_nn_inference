@@ -37,8 +37,6 @@
   * [Usage](#-usage)
   * [Build from Source](#-build-from-source)
   * [Contributing](#-contributing)
-  * [Contributors](#%EF%B8%8F-contributors-optional)
-  * [FAQs](#-faqs-optional)
   * [License](#-license)
 
 ---
@@ -190,7 +188,7 @@ sudo apt install ros-jazzy-qrb-ros-nn-inference
     3.4 build the pre-process node and post-process node
 
     ```bash
-      source source /opt/ros/jazzy/setup.bash && \
+      source /opt/ros/jazzy/setup.bash && \
       cd ~/ros-ws && \
       rm ./src/qrb_ros_nn_inference/test/qrb_ros_post_process/COLCON_IGNORE && \
       rm ./src/qrb_ros_nn_inference/test/qrb_ros_pre_process/COLCON_IGNORE && \
@@ -235,7 +233,7 @@ mkdir -p ~/ros-ws/src && \
 git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference ~/ros-ws/src && \
 git clone https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces ~/ros-ws/src && \
 cd ~/ros-ws/ && \
-colcon build --packages-select qrb_ros_nn_inference
+colcon build --packages-up-to qrb_ros_nn_inference
 ```
 
 ---
