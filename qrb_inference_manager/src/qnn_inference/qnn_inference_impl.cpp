@@ -166,6 +166,8 @@ StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
     const uint32_t tensor_cnt,
     const Qnn_Tensor_t * tensor_src)
 {
+  check_tensor_version(tensor_src);
+
   if (tensor_src == nullptr || tensor_cnt == 0) {
     return StatusCode::FAILURE;
   }
@@ -315,6 +317,12 @@ void QnnTensor::free_qnn_tensors(Qnn_Tensor_t * tensors, uint32_t tensors_cnt)
       check_and_free(tensors[i].v1.name);
       check_and_free(tensors[i].v1.clientBuf.data);
       check_and_free(tensors[i].v1.quantizeParams.axisScaleOffsetEncoding.scaleOffset);
+    } else if (tensors[i].version == QNN_TENSOR_VERSION_2) {
+      check_and_free(tensors[i].v2.dimensions);
+      check_and_free(tensors[i].v2.name);
+      check_and_free(tensors[i].v2.clientBuf.data);
+      check_and_free(tensors[i].v2.quantizeParams.axisScaleOffsetEncoding.scaleOffset);
+      check_and_free(tensors[i].v2.isDynamicDimensions);
     }
   }
 
@@ -489,126 +497,109 @@ StatusCode QnnTensor::allocate_tensor_buf(void *& data,
 
 void QnnTensor::check_tensor_version(const Qnn_Tensor_t * tensor)
 {
-  if (tensor->version != QNN_TENSOR_VERSION_1) {
-    QRB_WARNING("Version of tensor is NOT QNN_TENSOR_VERSION_1");
+  if (tensor->version == QNN_TENSOR_VERSION_1) {
+    QRB_INFO("Version of tensor is QNN_TENSOR_VERSION_1");
+  } else if (tensor->version == QNN_TENSOR_VERSION_2) {
+    QRB_INFO("Version of tensor is QNN_TENSOR_VERSION_2");
   }
 }
 
 inline void QnnTensor::set_tensor_id(Qnn_Tensor_t * tensor, const uint32_t id)
 {
-  check_tensor_version(tensor);
   tensor->v1.id = id;
 }
 
 inline void QnnTensor::set_tensor_type(Qnn_Tensor_t * tensor, const Qnn_TensorType_t type)
 {
-  check_tensor_version(tensor);
   tensor->v1.type = type;
 }
 
 inline void QnnTensor::set_tensor_data_format(Qnn_Tensor_t * tensor,
     const Qnn_TensorDataFormat_t format)
 {
-  check_tensor_version(tensor);
   tensor->v1.dataFormat = format;
 }
 
 inline void QnnTensor::set_tensor_data_type(Qnn_Tensor_t * tensor, const Qnn_DataType_t data_type)
 {
-  check_tensor_version(tensor);
   tensor->v1.dataType = data_type;
 }
 
 inline void QnnTensor::set_tensor_quant_params(Qnn_Tensor_t * tensor,
     const Qnn_QuantizeParams_t params)
 {
-  check_tensor_version(tensor);
   tensor->v1.quantizeParams = params;
 }
 
 inline void QnnTensor::set_tensor_rank(Qnn_Tensor_t * tensor, const uint32_t rank)
 {
-  check_tensor_version(tensor);
   tensor->v1.rank = rank;
 }
 
 inline void QnnTensor::set_tensor_dimensions(Qnn_Tensor_t * tensor, uint32_t * dims)
 {
-  check_tensor_version(tensor);
   tensor->v1.dimensions = dims;
 }
 
 inline void QnnTensor::set_tensor_name(Qnn_Tensor_t * tensor, const char * name)
 {
-  check_tensor_version(tensor);
   tensor->v1.name = name;
 }
 
 inline void QnnTensor::set_tensor_mem_type(Qnn_Tensor_t * tensor,
     const Qnn_TensorMemType_t mem_type)
 {
-  check_tensor_version(tensor);
   tensor->v1.memType = mem_type;
 }
 
 inline void QnnTensor::set_tensor_client_buf(Qnn_Tensor_t * tensor,
     const Qnn_ClientBuffer_t client_buf)
 {
-  check_tensor_version(tensor);
   tensor->v1.clientBuf = client_buf;
 }
 
 inline uint32_t QnnTensor::get_tensor_id(const Qnn_Tensor_t * tensor)
 {
-  check_tensor_version(tensor);
   return tensor->v1.id;
 }
 
 inline uint32_t * QnnTensor::get_tensor_dimensions(const Qnn_Tensor_t * tensor)
 {
-  check_tensor_version(tensor);
   return tensor->v1.dimensions;
 }
 
 inline uint32_t QnnTensor::get_tensor_rank(const Qnn_Tensor_t * tensor)
 {
-  check_tensor_version(tensor);
   return tensor->v1.rank;
 }
 
 inline const char * QnnTensor::get_tensor_name(const Qnn_Tensor_t * tensor)
 {
-  check_tensor_version(tensor);
   return tensor->v1.name;
 }
 
 inline Qnn_TensorType_t QnnTensor::get_tensor_type(const Qnn_Tensor_t * tensor)
 {
-  check_tensor_version(tensor);
   return tensor->v1.type;
 }
 
 inline Qnn_TensorDataFormat_t QnnTensor::get_tensor_data_format(const Qnn_Tensor_t * tensor)
 {
-  check_tensor_version(tensor);
   return tensor->v1.dataFormat;
 }
 
 inline Qnn_DataType_t QnnTensor::get_tensor_data_type(const Qnn_Tensor_t * tensor)
 {
-  check_tensor_version(tensor);
   return tensor->v1.dataType;
 }
 
 inline Qnn_QuantizeParams_t QnnTensor::get_tensor_quant_params(const Qnn_Tensor_t * tensor)
 {
-  check_tensor_version(tensor);
   return tensor->v1.quantizeParams;
 }
 
 inline Qnn_ClientBuffer_t QnnTensor::get_tensor_client_buf(const Qnn_Tensor_t * tensor)
 {
-  check_tensor_version(tensor);
   return tensor->v1.clientBuf;
 }
 
