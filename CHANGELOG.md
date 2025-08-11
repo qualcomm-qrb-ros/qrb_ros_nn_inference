@@ -53,3 +53,8 @@
 
 - support Ubuntu
 - Contributors👉 Na Song
+
+## 1.1.1-jazzy (2025-08-11)
+
+- adapt QNN_TENSOR_VERSION_2
+- Contributors👉 Na Song
