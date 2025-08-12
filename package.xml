@@ -1,13 +1,18 @@
-<?xml version="0.1.1"?>
+<?xml version="1.1.1"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>qrb_inference_manager</name>
-  <version>0.1.1</version>
+  <version>1.1.1</version>
   <description>Dependency library of qrb_ros_nn_inference</description>
-  <maintainer email="nasong@qti.qualcomm.com">Na Song</maintainer>
+  <maintainer email="quic_nasong@quicinc.com">Na Song</maintainer>
   <license>BSD-3-Clause-Clear</license>
 
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
+
+  <depend>libtensorflow-lite-c-qcom1</depend>
+  <depend>libtensorflow-lite-qcom-dev</depend>
+  <depend>libqnn-dev</depend>
+  <depend>libqnn1</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
