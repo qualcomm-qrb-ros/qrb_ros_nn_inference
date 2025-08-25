@@ -12,6 +12,8 @@
 
 ## 👋 Overview
 
+> WARNING: The inference of TFLite model is NOT supported on version 1.1.0-jazzy.
+
 **qrb_ros_nn_inference** is a ROS2 package for performing neural network model, providing 🤖AI-based perception for robotics applications. It provides:
 - ✨model inference API which supports three kinds of model format: **.tflite**, **.so**, **.bin**
 - 🚀model inference acceleration based on Qualcomm platforms
@@ -230,8 +232,9 @@ Download the source code and build with colcon:
 ```bash
 source /opt/ros/jazzy/setup.bash && \
 mkdir -p ~/ros-ws/src && \
-git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference ~/ros-ws/src && \
-git clone https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces ~/ros-ws/src && \
+cd ~/ros-ws/src && \
+git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference && \
+git clone https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces && \
 cd ~/ros-ws/ && \
 colcon build --packages-up-to qrb_ros_nn_inference
 ```
