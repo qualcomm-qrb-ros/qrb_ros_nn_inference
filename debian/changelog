@@ -1,7 +1,11 @@
+ros-jazzy-qrb-inference-manager (1.1.1) noble; urgency=high
+
+  * Update version 1.1.1
+
+ -- Na Song <quic_nasong@quicinc.com>  Fri, 05 Sep 2025 02:50:50 -0000
+
 ros-jazzy-qrb-inference-manager (0.1.1) noble; urgency=high
 
   * First debian release.
 
  -- Na Song <nasong@qti.qualcomm.com>  Thu, 10 Jul 2025 09:00:24 -0000
-
-
