@@ -145,7 +145,7 @@ sudo apt install ros-jazzy-qrb-ros-nn-inference
   ```bash
     # qrb_ros_nn_inference/test includes the pre-process node and post-process node
     mkdir -p ~/ros-ws/src && cd ~/ros-ws/src && \
-    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference && \
+    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference
   ```
 
 3. test qrb_ros_nn_inference with YOLOv8 detection model
