@@ -13,7 +13,7 @@ def generate_launch_description():
     name = "pre_process_node",
     parameters=[
       {
-        "image_path": os.environ['HOME'] + "/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.raw"
+        "image_path": os.environ['HOME'] + "/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/image.raw"
       }
     ]
   )
