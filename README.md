@@ -147,18 +147,22 @@ sudo apt install ros-jazzy-qrb-ros-nn-inference
   ```bash
     # qrb_ros_nn_inference/test includes the pre-process node and post-process node
     mkdir -p ~/ros-ws/src && cd ~/ros-ws/src && \
-    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference && \
+    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference
   ```
 
 3. test qrb_ros_nn_inference with YOLOv8 detection model
 
-    3.1 download yolov8.tflite model by following [QC AI hub Getting Started](https://app.aihub.qualcomm.com/docs/hub/getting_started.html).
-
-    3.2 download the test image for object detecion
+    3.1 Please follow the [guides](https://github.com/quic/ai-hub-models/tree/main/qai_hub_models/models/yolov8_det#export-for-on-device-deployment) to get yolov8_det.tflite model. For the model run on RB3 gen2, you can run the commands:
 
     ```bash
-    wget -P ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/ \
-    https://ultralytics.com/images/bus.jpg && \
+    python3 -m qai_hub_models.models.yolov8_det.export --target-runtime tflite --device "QCS6490 (Proxy)"
+    ```
+
+    3.2 prepare a image for object detecion
+
+    ```bash
+    mkdir -p ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/
+    cp /path/to/image.jpg ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/
     python3 ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/yolov8_input_pre_process.py
     ```
 
@@ -171,7 +175,7 @@ sudo apt install ros-jazzy-qrb-ros-nn-inference
        name = "pre_process_node",
        parameters=[
          {
-           "image_path": os.environ['HOME'] + "/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.raw"
+           "image_path": os.environ['HOME'] + "/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/image.raw"
          }
        ]
     )
