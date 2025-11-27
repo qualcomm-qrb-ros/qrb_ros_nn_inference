@@ -210,15 +210,7 @@ sudo apt install ros-jazzy-qrb-ros-nn-inference
       source install/local_setup.bash && \
       ros2 launch qrb_ros_post_process nn_node_test.launch.py
     ```
-
-    3.6 visualize the detection result
-
-    ```bash
-      python3 ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/qrb_ros_yolo_detection_visualizer.py \
-      --original_image ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.jpg
-    ```
-
-    reulst image will be stroed in `~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result`
+    You can see the result tensor in `~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result`
 
 ---
 
