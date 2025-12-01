@@ -122,6 +122,8 @@ Please see [qrb_inference_manager APIs](./qrb_inference_manager/Documentation.md
 > Reference [Install Ubuntu on Qualcomm IoT Platforms](https://ubuntu.com/download/qualcomm-iot) and [Install ROS Jazzy](https://docs.ros.org/en/jazzy/index.html) to setup environment. <br>
 > For Qualcomm Linux, please check out the [Qualcomm Intelligent Robotics Product SDK](https://docs.qualcomm.com/bundle/publicresource/topics/80-70018-265/introduction_1.html?vproduct=1601111740013072&version=1.4&facet=Qualcomm%20Intelligent%20Robotics%20Product%20(QIRP)%20SDK) documents.
 
+> Note: The GPU hardware acceleration is not support on Ubuntu Desktop<br>
+
 Add Qualcomm IOT PPA for Ubuntu:
 
 ```bash
@@ -150,13 +152,17 @@ sudo apt install ros-jazzy-qrb-ros-nn-inference
 
 3. test qrb_ros_nn_inference with YOLOv8 detection model
 
-    3.1 download yolov8.tflite model by following [QC AI hub Getting Started](https://app.aihub.qualcomm.com/docs/hub/getting_started.html).
-
-    3.2 download the test image for object detecion
+    3.1 Please follow the [guides](https://github.com/quic/ai-hub-models/tree/main/qai_hub_models/models/yolov8_det#export-for-on-device-deployment) to get yolov8_det.tflite model. For the model run on RB3 gen2, you can run the commands:
 
     ```bash
-    wget -P ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/ \
-    https://ultralytics.com/images/bus.jpg && \
+    python3 -m qai_hub_models.models.yolov8_det.export --target-runtime tflite --device "QCS6490 (Proxy)"
+    ```
+
+    3.2 prepare a image for object detecion
+
+    ```bash
+    mkdir -p ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/
+    cp /path/to/image.jpg ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/
     python3 ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/yolov8_input_pre_process.py
     ```
 
@@ -169,7 +175,7 @@ sudo apt install ros-jazzy-qrb-ros-nn-inference
        name = "pre_process_node",
        parameters=[
          {
-           "image_path": os.environ['HOME'] + "/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.raw"
+           "image_path": os.environ['HOME'] + "/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/image.raw"
          }
        ]
     )
@@ -204,15 +210,7 @@ sudo apt install ros-jazzy-qrb-ros-nn-inference
       source install/local_setup.bash && \
       ros2 launch qrb_ros_post_process nn_node_test.launch.py
     ```
-
-    3.6 visualize the detection result
-
-    ```bash
-      python3 ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/scripts/qrb_ros_yolo_detection_visualizer.py \
-      --original_image ~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_pre_process/image/bus.jpg
-    ```
-
-    reulst image will be stroed in `~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result`
+    You can see the result tensor in `~/ros-ws/src/qrb_ros_nn_inference/test/qrb_ros_post_process/inference_result`
 
 ---
 
