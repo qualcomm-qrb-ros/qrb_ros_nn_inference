@@ -1,0 +1,6 @@
+# qrb_ros_post_process_with_dma default config
+qrb_ros_post_process_with_dma:
+  ros__parameters:
+    # Model input size (DepthAnything v2 default for this sample)
+    input_width: 518
+    input_height: 518
