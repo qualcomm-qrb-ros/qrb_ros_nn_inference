@@ -27,6 +27,13 @@ void QRB_WARNING(Args &&... args)
 }
 
 template <typename... Args>
+void QRB_DEBUG(Args &&... args)
+{
+  std::cout << "\033[34m[QRB DEBUG] \033[0m";
+  (std::cout << ... << args) << std::endl;
+}
+
+template <typename... Args>
 void QRB_ERROR(Args &&... args)
 {
   std::cout << "\033[31m[QRB ERROR] \033[0m";
@@ -49,6 +56,11 @@ struct OutputTensor
   std::string output_tensor_name;
   std::vector<uint32_t> output_tensor_shape;
   int32_t data_type;
+
+  int output_dmabuf_fd{ -1 };
+  uint32_t output_dmabuf_size{ 0 };
+  uint64_t output_dmabuf_offset{ 0 };
+  uint64_t output_dmabuf_ptr{ 0 };  // RPCMEM pointer address for memory management
 };
 
 class QrbInference
