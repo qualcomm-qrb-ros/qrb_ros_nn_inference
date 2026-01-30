@@ -244,7 +244,6 @@ int32_t QnnTensor::qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type)
 {
   switch (data_type) {
     case QNN_DATATYPE_UINT_8:
-      return 0;
     case QNN_DATATYPE_UFIXED_POINT_8:
       return 0;
     case QNN_DATATYPE_INT_8:
@@ -253,6 +252,14 @@ int32_t QnnTensor::qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type)
       return 2;
     case QNN_DATATYPE_FLOAT_64:
       return 3;
+    case QNN_DATATYPE_UINT_16:
+      return 4;
+    case QNN_DATATYPE_FLOAT_16:
+      return 5;
+    case QNN_DATATYPE_UINT_32:
+      return 6;
+    case QNN_DATATYPE_UINT_64:
+      return 7;
     default:
       return -1;
   }
@@ -446,14 +453,23 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vect
       return sizeof(float) * element_cnt;
     case QNN_DATATYPE_FLOAT_64:
       return sizeof(double) * element_cnt;
-    case QNN_DATATYPE_UINT_8:
-      return sizeof(uint8_t) * element_cnt;
-    case QNN_DATATYPE_UFIXED_POINT_8:
-      return sizeof(uint8_t) * element_cnt;
     case QNN_DATATYPE_INT_8:
-      return sizeof(int8_t) * element_cnt;
+    case QNN_DATATYPE_UINT_8:
+    case QNN_DATATYPE_UFIXED_POINT_8:
+    case QNN_DATATYPE_BOOL_8:
+      return sizeof(uint8_t) * element_cnt;
+    case QNN_DATATYPE_UINT_16:
+    case QNN_DATATYPE_UFIXED_POINT_16:
+    case QNN_DATATYPE_INT_16:
+      return sizeof(uint16_t) * element_cnt;
+    case QNN_DATATYPE_UINT_32:
+    case QNN_DATATYPE_INT_32:
+      return sizeof(uint32_t) * element_cnt;
+    case QNN_DATATYPE_UINT_64:
+    case QNN_DATATYPE_INT_64:
+      return sizeof(uint64_t) * element_cnt;
     default:
-      QRB_ERROR("Data type is not suppport! get_tensor_size may fail!");
+      QRB_WARNING("QNN Tensor datat type is not suppport!");
       return sizeof(uint8_t) * element_cnt;
   }
 }

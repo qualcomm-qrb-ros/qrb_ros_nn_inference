@@ -131,6 +131,294 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
   return StatusCode::SUCCESS;
 }
 
+StatusCode QnnInference::inference_execute_dmabuf(
+    int dmabuf_fd, uint32_t dmabuf_size, uint64_t dmabuf_offset)
+{
+  // Track previous inference output resources for cleanup.
+  //
+  // NOTE:
+  // - Output RPCMEM buffers are freed by the downstream consumer (post-process node) using dmabuf_ptr.
+  // - Therefore, we must NOT keep an owning RpcMemManager here; otherwise we'd risk double-free.
+  // - We still must memDeRegister the output mem handles to avoid leaking QNN registrations.
+  static std::vector<Qnn_MemHandle_t> prev_output_handles;
+  static int inference_count = 0;
+  inference_count++;
+
+  QRB_INFO("========== INFERENCE #", inference_count, " START ==========");
+  QRB_INFO("[MEMORY] Input: fd=", dmabuf_fd, " size=", dmabuf_size, " offset=", dmabuf_offset);
+
+  if (dmabuf_fd < 0 || dmabuf_size == 0) {
+    QRB_ERROR("Invalid DMA-BUF input: fd=", dmabuf_fd, " size=", dmabuf_size);
+    return StatusCode::FAILURE;
+  }
+
+  // Clean up previous output handles before starting new inference
+  if (!prev_output_handles.empty()) {
+    QRB_INFO("[MEMORY] Cleaning up ", prev_output_handles.size(),
+        " previous output handles from inference #", inference_count - 1);
+    for (auto & handle : prev_output_handles) {
+      if (handle != nullptr) {
+        qnn_interface_->interface.memDeRegister(&handle, 1u);
+      }
+    }
+    prev_output_handles.clear();
+  }
+
+  for (uint32_t g = 0; g < graphs_count_; g++) {
+    const auto & graph_info = (*(graphs_info_))[g];
+
+    // Current implementation supports single input tensor (common for the provided ROS sample).
+    // Extending to multi-input requires offset/size per tensor.
+    if (graph_info.num_of_input_tensors != 1) {
+      QRB_ERROR("DMA-BUF input path currently supports single input tensor only. num_inputs=",
+          graph_info.num_of_input_tensors);
+      return StatusCode::FAILURE;
+    }
+
+    auto io_tensors = QnnTensor(graph_info.num_of_input_tensors, graph_info.num_of_output_tensors);
+
+    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.inputs,
+                                   io_tensors.num_of_input_tensors, graph_info.input_tensors)) {
+      QRB_ERROR("Setup input tensors failed!");
+      return StatusCode::FAILURE;
+    }
+
+    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.outputs,
+                                   io_tensors.num_of_output_tensors, graph_info.output_tensors)) {
+      QRB_ERROR("Setup output tensors failed!");
+      return StatusCode::FAILURE;
+    }
+
+    // DMA-BUF path does not use QnnTensor's per-tensor clientBuf allocations. The setup_tensors()
+    // implementation allocates clientBuf.data for each tensor via malloc(), which will accumulate
+    // on the heap if not explicitly freed per frame. For zero-copy ION path we clear them here.
+    for (uint32_t in_i = 0; in_i < graph_info.num_of_input_tensors; in_i++) {
+      if (io_tensors.inputs[in_i].version == QNN_TENSOR_VERSION_1 &&
+          io_tensors.inputs[in_i].v1.clientBuf.data != nullptr) {
+        free(io_tensors.inputs[in_i].v1.clientBuf.data);
+        io_tensors.inputs[in_i].v1.clientBuf.data = nullptr;
+        io_tensors.inputs[in_i].v1.clientBuf.dataSize = 0;
+      } else if (io_tensors.inputs[in_i].version == QNN_TENSOR_VERSION_2 &&
+                 io_tensors.inputs[in_i].v2.clientBuf.data != nullptr) {
+        free(io_tensors.inputs[in_i].v2.clientBuf.data);
+        io_tensors.inputs[in_i].v2.clientBuf.data = nullptr;
+        io_tensors.inputs[in_i].v2.clientBuf.dataSize = 0;
+      }
+    }
+    for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
+      if (io_tensors.outputs[out_i].version == QNN_TENSOR_VERSION_1 &&
+          io_tensors.outputs[out_i].v1.clientBuf.data != nullptr) {
+        free(io_tensors.outputs[out_i].v1.clientBuf.data);
+        io_tensors.outputs[out_i].v1.clientBuf.data = nullptr;
+        io_tensors.outputs[out_i].v1.clientBuf.dataSize = 0;
+      } else if (io_tensors.outputs[out_i].version == QNN_TENSOR_VERSION_2 &&
+                 io_tensors.outputs[out_i].v2.clientBuf.data != nullptr) {
+        free(io_tensors.outputs[out_i].v2.clientBuf.data);
+        io_tensors.outputs[out_i].v2.clientBuf.data = nullptr;
+        io_tensors.outputs[out_i].v2.clientBuf.dataSize = 0;
+      }
+    }
+
+    // Register input shared buffer as ION (RPCMEM-backed fd).
+    Qnn_MemDescriptor_t input_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
+    input_mem_desc.memShape = {io_tensors.inputs[0].v1.rank, io_tensors.inputs[0].v1.dimensions, nullptr};
+    input_mem_desc.dataType = io_tensors.inputs[0].v1.dataType;
+    input_mem_desc.memType = QNN_MEM_TYPE_ION;
+    input_mem_desc.ionInfo.fd = dmabuf_fd;
+
+    Qnn_MemHandle_t input_mem_handle = nullptr;
+    auto rc = qnn_interface_->interface.memRegister(context_, &input_mem_desc, 1u, &input_mem_handle);
+    if (QNN_SUCCESS != rc) {
+      const char * err_msg = nullptr;
+      qnn_interface_->interface.errorGetMessage(rc, &err_msg);
+      QRB_ERROR("memRegister(input DMA-BUF) failed: ", (err_msg ? err_msg : "unknown"), " (", rc, ")");
+      return StatusCode::FAILURE;
+    }
+
+    io_tensors.inputs[0].v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
+    io_tensors.inputs[0].v1.memHandle = input_mem_handle;
+
+    // Register each output tensor as its own ION buffer (rpcmem-backed) to get a distinct fd.
+    std::vector<Qnn_MemHandle_t> output_mem_handles(graph_info.num_of_output_tensors, nullptr);
+    std::vector<int> output_fds(graph_info.num_of_output_tensors, -1);
+    std::vector<uint32_t> output_sizes(graph_info.num_of_output_tensors, 0);
+    std::vector<void *> output_ptrs(graph_info.num_of_output_tensors, nullptr);
+
+    constexpr int RPCMEM_HEAP_ID_SYSTEM = 25;
+    constexpr uint32_t RPCMEM_DEFAULT_FLAGS = 1;
+
+    auto cleanup_outputs = [&] {
+      for (uint32_t i = 0; i < graph_info.num_of_output_tensors; i++) {
+        if (output_mem_handles[i] != nullptr) {
+          qnn_interface_->interface.memDeRegister(&output_mem_handles[i], 1u);
+          output_mem_handles[i] = nullptr;
+        }
+      }
+      qnn_interface_->interface.memDeRegister(&input_mem_handle, 1u);
+    };
+
+    for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
+      auto * out_tensor = &(io_tensors.outputs[out_i]);
+
+      auto shape = io_tensors.get_tensor_shape(out_tensor);
+      uint32_t output_tensor_size = io_tensors.get_tensor_size(out_tensor, shape);
+
+      // IMPORTANT:
+      // output RPCMEM buffer ownership is transferred to downstream via dmabuf_ptr, where it will be
+      // freed using rpcmem_free(ptr). Therefore, we must NOT keep an owning RpcMemManager here;
+      // otherwise it will free the buffer at end of scope (causing invalid output).
+      auto rpc_mgr = std::make_shared<RpcMemManager>();
+      if (StatusCode::SUCCESS != rpc_mgr->init()) {
+        QRB_ERROR("RpcMemManager init failed");
+        cleanup_outputs();
+        return StatusCode::FAILURE;
+      }
+
+      if (StatusCode::SUCCESS != rpc_mgr->alloc(output_tensor_size, RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS)) {
+        QRB_ERROR("RpcMemManager alloc failed for size: ", output_tensor_size);
+        cleanup_outputs();
+        return StatusCode::FAILURE;
+      }
+
+      int fd = rpc_mgr->get_fd();
+      void * ptr = rpc_mgr->get_ptr();
+      QRB_INFO("[MEMORY] Allocated output[", out_i, "]: ptr=", ptr, " fd=", fd, " size=", output_tensor_size);
+
+      Qnn_MemDescriptor_t out_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
+      out_mem_desc.memShape = {out_tensor->v1.rank, out_tensor->v1.dimensions, nullptr};
+      out_mem_desc.dataType = out_tensor->v1.dataType;
+      out_mem_desc.memType = QNN_MEM_TYPE_ION;
+      out_mem_desc.ionInfo.fd = fd;
+
+      Qnn_MemHandle_t out_mem_handle = nullptr;
+      auto out_rc = qnn_interface_->interface.memRegister(context_, &out_mem_desc, 1u, &out_mem_handle);
+      if (QNN_SUCCESS != out_rc) {
+        const char * err_msg = nullptr;
+        qnn_interface_->interface.errorGetMessage(out_rc, &err_msg);
+        QRB_ERROR("memRegister(output ION) failed: ", (err_msg ? err_msg : "unknown"), " (", out_rc, ")");
+        cleanup_outputs();
+        return StatusCode::FAILURE;
+      }
+
+      out_tensor->v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
+      out_tensor->v1.memHandle = out_mem_handle;
+
+      output_mem_handles[out_i] = out_mem_handle;
+      output_fds[out_i] = fd;
+      output_sizes[out_i] = output_tensor_size;
+      output_ptrs[out_i] = ptr;
+
+      // Transfer ownership to downstream. Downstream will call rpcmem_free(ptr) using dmabuf_ptr.
+      // Ensure our destructor does NOT free the buffer. We still keep this object alive until the
+      // next inference cycle to keep libcdsprpc handle and symbol pointers valid.
+      rpc_mgr->disown();
+      static std::vector<std::shared_ptr<RpcMemManager>> s_output_keepalive;
+      s_output_keepalive.push_back(rpc_mgr);
+    }
+
+    // Execute graph
+    QRB_DEBUG("=== About to execute graph ===");
+    QRB_DEBUG("Graph handle: ", graph_info.graph);
+    QRB_DEBUG("Num inputs: ", io_tensors.num_of_input_tensors);
+    QRB_DEBUG("Num outputs: ", io_tensors.num_of_output_tensors);
+    QRB_DEBUG("Input[0] memType: ", io_tensors.inputs[0].v1.memType);
+    QRB_DEBUG("Calling graphExecute...");
+
+    auto exec_rc = qnn_interface_->interface.graphExecute(graph_info.graph,
+                                  io_tensors.inputs, io_tensors.num_of_input_tensors,
+                                  io_tensors.outputs, io_tensors.num_of_output_tensors, nullptr,
+                                  nullptr);
+
+    QRB_DEBUG("graphExecute returned: ", exec_rc);
+
+    if (QNN_GRAPH_NO_ERROR != exec_rc) {
+      QRB_ERROR("QNN graphExecute failed with code: ", exec_rc);
+      cleanup_outputs();
+      return StatusCode::FAILURE;
+    }
+
+    QRB_DEBUG("graphExecute succeeded!");
+
+    // Immediately deregister input handle after graph execution completes
+    // The input memory is owned by the caller (pre-process node) and will be reused
+    QRB_DEBUG("Deregistering input_mem_handle after graph execution...");
+    auto input_dereg_rc = qnn_interface_->interface.memDeRegister(&input_mem_handle, 1u);
+    QRB_DEBUG("Input memDeRegister returned: ", input_dereg_rc);
+
+#ifndef __hexagon__
+    // Produce OutputTensor list with DMA-BUF metadata and no data copy.
+    QRB_DEBUG("=== Processing output tensors ===");
+    QRB_DEBUG("Number of output tensors: ", graph_info.num_of_output_tensors);
+
+    output_tensor_.clear();
+    output_tensor_.reserve(graph_info.num_of_output_tensors);
+
+    for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
+      const auto * out_tensor = &(io_tensors.outputs[out_i]);
+
+      auto shape = io_tensors.get_tensor_shape(out_tensor);
+
+      OutputTensor ot;
+      ot.output_tensor_name = out_tensor->v1.name;
+
+      ot.output_tensor_shape.reserve(shape.size());
+      for (size_t i = 0; i < shape.size(); i++) {
+        ot.output_tensor_shape.push_back(static_cast<uint32_t>(shape[i]));
+      }
+
+      ot.data_type = io_tensors.qnn_dtype_to_qrb_dtype(out_tensor->v1.dataType);
+
+      // tensor data is in DMA-BUF
+      ot.output_dmabuf_fd = output_fds[out_i];
+      ot.output_dmabuf_offset = dmabuf_offset;
+      ot.output_dmabuf_size = output_sizes[out_i];
+      // Downstream will free this RPCMEM allocation using rpcmem_free(ptr).
+      ot.output_dmabuf_ptr = reinterpret_cast<uint64_t>(output_ptrs[out_i]);
+
+      output_tensor_.emplace_back(std::move(ot));
+    }
+#endif
+
+    // IMPORTANT: Manually free both input and output tensors to prevent destructor issues
+    // Input/output dimensions and names point to graph_info which is still valid
+    // We must prevent double-free by clearing these pointers before destructor runs
+
+    QRB_DEBUG("Manually freeing input tensors...");
+    for (uint32_t in_i = 0; in_i < graph_info.num_of_input_tensors; in_i++) {
+      io_tensors.inputs[in_i].v1.memType = QNN_TENSORMEMTYPE_RAW;
+      io_tensors.inputs[in_i].v1.clientBuf.data = nullptr;
+      io_tensors.inputs[in_i].v1.clientBuf.dataSize = 0;
+      io_tensors.inputs[in_i].v1.dimensions = nullptr;
+      io_tensors.inputs[in_i].v1.name = nullptr;
+    }
+    free(io_tensors.inputs);
+    io_tensors.inputs = nullptr;
+    io_tensors.num_of_input_tensors = 0;
+    QRB_DEBUG("Input tensors manually freed");
+
+    QRB_DEBUG("Manually freeing output tensors...");
+    for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
+      io_tensors.outputs[out_i].v1.memType = QNN_TENSORMEMTYPE_RAW;
+      io_tensors.outputs[out_i].v1.clientBuf.data = nullptr;
+      io_tensors.outputs[out_i].v1.clientBuf.dataSize = 0;
+      io_tensors.outputs[out_i].v1.dimensions = nullptr;
+      io_tensors.outputs[out_i].v1.name = nullptr;
+    }
+    free(io_tensors.outputs);
+    io_tensors.outputs = nullptr;
+    io_tensors.num_of_output_tensors = 0;
+    QRB_DEBUG("Output tensors manually freed");
+
+    // Save output handles for cleanup in next inference (deregister only).
+    // Output RPCMEM is owned by downstream consumer.
+    prev_output_handles = std::move(output_mem_handles);
+    QRB_DEBUG("Saved ", prev_output_handles.size(), " output handles for next cleanup");
+  }
+
+  QRB_DEBUG("inference_execute_dmabuf returning SUCCESS");
+  return StatusCode::SUCCESS;
+}
+
 const std::vector<OutputTensor> QnnInference::get_output_tensors()
 {
   return std::move(output_tensor_);
