@@ -1,5 +1,9 @@
 # Changelog for package qrb_ros_nn_inference
 
+## 2.2.0 (2026-02-06)
+- support multiple input tensor
+- Contributors👉 Na Song
+
 ## 2.1.0 (2026-02-04)
 - optimize the code style
 - Contributors👉 Na Song
