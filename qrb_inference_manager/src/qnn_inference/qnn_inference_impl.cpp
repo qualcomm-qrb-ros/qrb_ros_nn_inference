@@ -212,30 +212,46 @@ StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
 /// @return SUCCESS or FAILURE
 StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_data)
 {
-  if ((inputs_ == nullptr) || (get_tensor_dimensions(inputs_) == nullptr)) {
+  if (inputs_ == nullptr) {
     return StatusCode::FAILURE;
   }
 
-  std::vector<size_t> shape;
-  for (size_t i = 0; i < get_tensor_rank(inputs_); i++) {
-    shape.emplace_back(get_tensor_dimensions(inputs_)[i]);
+  // Calculate total expected size for all input tensors
+  size_t total_expected_size = 0;
+  for (uint32_t i = 0; i < num_of_input_tensors_; i++) {
+    std::vector<size_t> shape;
+    for (size_t j = 0; j < get_tensor_rank(&inputs_[i]); j++) {
+      shape.emplace_back(get_tensor_dimensions(&inputs_[i])[j]);
+    }
+    total_expected_size += get_tensor_size(&inputs_[i], shape);
   }
 
-  if (-1 != qnn_dtype_to_qrb_dtype(get_tensor_data_type(inputs_))) {
-    size_t tensor_size = get_tensor_size(inputs_, shape);
+  if (total_expected_size != input_data.size()) {
+    QRB_ERROR("Total size of all input tensors should be ", total_expected_size,
+        " bytes, but receive ", input_data.size(), " bytes");
+    return StatusCode::FAILURE;
+  }
 
-    if (tensor_size != input_data.size()) {
-      QRB_ERROR("The size of input tensor should be %u byte, but receive %u byte", tensor_size,
-          input_data.size());
+  // Fill data into each input tensor
+  size_t data_offset = 0;
+  for (uint32_t i = 0; i < num_of_input_tensors_; i++) {
+    std::vector<size_t> shape;
+    for (size_t j = 0; j < get_tensor_rank(&inputs_[i]); j++) {
+      shape.emplace_back(get_tensor_dimensions(&inputs_[i])[j]);
+    }
+
+    if (-1 == qnn_dtype_to_qrb_dtype(get_tensor_data_type(&inputs_[i]))) {
+      QRB_ERROR("Input tensor ", i, " data type is not supported!");
       return StatusCode::FAILURE;
     }
 
-    // get_tensor_client_buf(input).data is const and can not point to input_tensor_data directly
-    memcpy(static_cast<char *>(get_tensor_client_buf(inputs_).data), input_data.data(),
-        input_data.size());
-  } else {
-    QRB_ERROR("Input data type of model is not suppport!");
-    return StatusCode::FAILURE;
+    size_t tensor_size = get_tensor_size(&inputs_[i], shape);
+
+    // Copy data for this tensor
+    memcpy(static_cast<char *>(get_tensor_client_buf(&inputs_[i]).data),
+        input_data.data() + data_offset, tensor_size);
+
+    data_offset += tensor_size;
   }
 
   return StatusCode::SUCCESS;
@@ -323,12 +339,12 @@ void QnnTensor::free_qnn_tensors(Qnn_Tensor_t * tensors, uint32_t tensors_cnt)
     if (tensors[i].version == QNN_TENSOR_VERSION_1) {
       check_and_free(tensors[i].v1.dimensions);
       check_and_free(tensors[i].v1.name);
-      check_and_free(tensors[i].v1.clientBuf.data);
+      if(use_mem_handle_ == false) check_and_free(tensors[i].v1.clientBuf.data);
       check_and_free(tensors[i].v1.quantizeParams.axisScaleOffsetEncoding.scaleOffset);
     } else if (tensors[i].version == QNN_TENSOR_VERSION_2) {
       check_and_free(tensors[i].v2.dimensions);
       check_and_free(tensors[i].v2.name);
-      check_and_free(tensors[i].v2.clientBuf.data);
+      if(use_mem_handle_ == false) check_and_free(tensors[i].v2.clientBuf.data);
       check_and_free(tensors[i].v2.quantizeParams.axisScaleOffsetEncoding.scaleOffset);
       check_and_free(tensors[i].v2.isDynamicDimensions);
     }

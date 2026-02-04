@@ -353,38 +353,6 @@ StatusCode QnnInference::inference_execute_dmabuf(
     }
 #endif
 
-    // IMPORTANT: Manually free both input and output tensors to prevent destructor issues
-    // Input/output dimensions and names point to graph_info which is still valid
-    // We must prevent double-free by clearing these pointers before destructor runs
-
-    QRB_DEBUG("Manually freeing input tensors...");
-    for (uint32_t in_i = 0; in_i < graph_info.num_of_input_tensors; in_i++) {
-      io_tensors.inputs_[in_i].v1.memType = QNN_TENSORMEMTYPE_RAW;
-      io_tensors.inputs_[in_i].v1.clientBuf.data = nullptr;
-      io_tensors.inputs_[in_i].v1.clientBuf.dataSize = 0;
-      io_tensors.inputs_[in_i].v1.dimensions = nullptr;
-      io_tensors.inputs_[in_i].v1.name = nullptr;
-    }
-    free(io_tensors.inputs_);
-    io_tensors.inputs_ = nullptr;
-    io_tensors.num_of_input_tensors_ = 0;
-    QRB_DEBUG("Input tensors manually freed");
-
-    QRB_DEBUG("Manually freeing output tensors...");
-    for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
-      io_tensors.outputs_[out_i].v1.memType = QNN_TENSORMEMTYPE_RAW;
-      io_tensors.outputs_[out_i].v1.clientBuf.data = nullptr;
-      io_tensors.outputs_[out_i].v1.clientBuf.dataSize = 0;
-      io_tensors.outputs_[out_i].v1.dimensions = nullptr;
-      io_tensors.outputs_[out_i].v1.name = nullptr;
-    }
-    free(io_tensors.outputs_);
-    io_tensors.outputs_ = nullptr;
-    io_tensors.num_of_output_tensors_ = 0;
-    QRB_DEBUG("Output tensors manually freed");
-
-    // Save output handles for cleanup in next inference (deregister only).
-    // Output RPCMEM is owned by downstream consumer.
     prev_output_handles = std::move(output_mem_handles);
     QRB_DEBUG("Saved ", prev_output_handles.size(), " output handles for next cleanup");
   }
@@ -485,20 +453,24 @@ void QnnInference::free_graphs_info()
     return;
   }
 
+  auto check_and_free = [](auto & ptr) {
+    if (ptr != nullptr) {
+      free((void *)ptr);
+      ptr = nullptr;
+    }
+  };
+
   for (uint32_t i = 0; i < graphs_count_; i++) {
     auto & graph_info = graphs_info_[i];
-    free(graph_info->graph_name);
-    graph_info->graph_name = nullptr;
+    check_and_free(graph_info->graph_name);
 
     QnnTensor tensor_ops;
     tensor_ops.free_qnn_tensors(graph_info->input_tensors, graph_info->num_of_input_tensors);
     tensor_ops.free_qnn_tensors(graph_info->output_tensors, graph_info->num_of_output_tensors);
   }
 
-  free(*graphs_info_);
-  *graphs_info_ = nullptr;
-  free(graphs_info_);
-  graphs_info_ = nullptr;
+  check_and_free(*graphs_info_);
+  check_and_free(graphs_info_);
 }
 
 void QnnInference::free_context()
@@ -625,12 +597,13 @@ StatusCode QnnInference::copy_graph_info(T graph_info_from_binary)
     }
 
     graph_info_dst->graph_name =
-        (char *)malloc(sizeof(char) * strlen(graph_info_from_binary.graphName));
+        (char *)malloc(sizeof(char) * (strlen(graph_info_from_binary.graphName) + 1));
     if (nullptr == graph_info_dst->graph_name) {
       return StatusCode::FAILURE;
     }
     memcpy(graph_info_dst->graph_name, graph_info_from_binary.graphName,
         strlen(graph_info_from_binary.graphName));
+    graph_info_dst->graph_name[strlen(graph_info_from_binary.graphName)] = '\0';
 
     auto set_up_tensors_info = [](const Qnn_Tensor_t * src, const uint32_t cnt,
                                    Qnn_Tensor_t *& dst) {
