@@ -85,7 +85,7 @@ bool QnnInterface::init_qnn_backend_interface(const std::string & backend_option
   for (size_t i = 0; i < num_providers; i++) {
     if (QNN_API_VERSION_MAJOR == interface_providers[i]->apiVersion.coreApiVersion.major &&
         QNN_API_VERSION_MINOR <= interface_providers[i]->apiVersion.coreApiVersion.minor) {
-      this->interface = interface_providers[i]->QNN_INTERFACE_VER_NAME;
+      this->interface_ = interface_providers[i]->QNN_INTERFACE_VER_NAME;
       return true;
     }
   }
@@ -100,10 +100,10 @@ bool QnnInterface::init_qnn_backend_interface(const std::string & backend_option
 /// @return true or false
 bool QnnInterface::init_qnn_graph_interface(const std::string & model_path, void ** model_handle)
 {
-  this->compose_graphs = get_function_from_lib<compose_graphs_func>(
+  this->compose_graphs_ = get_function_from_lib<compose_graphs_func>(
       model_path, RTLD_NOW | RTLD_LOCAL, model_handle, "QnnModel_composeGraphs");
 
-  this->free_graph_info = get_function_from_lib<free_graph_info_func>(
+  this->free_graph_info_ = get_function_from_lib<free_graph_info_func>(
       model_path, RTLD_NOW | RTLD_LOCAL, model_handle, "QnnModel_freeGraphsInfo");
 
   return true;
@@ -137,7 +137,7 @@ bool QnnInterface::init_qnn_system_interface(const std::string & qnn_syslib_path
   for (size_t i = 0; i < number_of_providers; i++) {
     if (QNN_SYSTEM_API_VERSION_MAJOR == sys_interface_providers[i]->systemApiVersion.major &&
         QNN_SYSTEM_API_VERSION_MINOR <= sys_interface_providers[i]->systemApiVersion.minor) {
-      qnn_system_interface = sys_interface_providers[i]->QNN_SYSTEM_INTERFACE_VER_NAME;
+      qnn_system_interface_ = sys_interface_providers[i]->QNN_SYSTEM_INTERFACE_VER_NAME;
       return true;
     }
   }
@@ -147,14 +147,14 @@ bool QnnInterface::init_qnn_system_interface(const std::string & qnn_syslib_path
 }
 
 QnnTensor::QnnTensor(uint32_t num_of_input_tensors, uint32_t num_of_output_tensors)
-  : num_of_input_tensors(num_of_input_tensors), num_of_output_tensors(num_of_output_tensors)
+  : num_of_input_tensors_(num_of_input_tensors), num_of_output_tensors_(num_of_output_tensors)
 {
 }
 
 QnnTensor::~QnnTensor()
 {
-  free_qnn_tensors(inputs, num_of_input_tensors);
-  free_qnn_tensors(outputs, num_of_output_tensors);
+  free_qnn_tensors(inputs_, num_of_input_tensors_);
+  free_qnn_tensors(outputs_, num_of_output_tensors_);
 }
 
 /// @brief setup tensor based on tensor_src
@@ -191,16 +191,17 @@ StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
       return StatusCode::FAILURE;
     }
 
-    set_tensor_mem_type(tensor + i, QNN_TENSORMEMTYPE_RAW);
+    if(use_mem_handle_ == false) {
+      set_tensor_mem_type(tensor + i, QNN_TENSORMEMTYPE_RAW);
+      Qnn_ClientBuffer_t tensor_buf = QNN_CLIENT_BUFFER_INIT;
+      tensor_buf.dataSize = get_tensor_size(tensor + i, tensor_shape);
+      if (StatusCode::SUCCESS !=
+          allocate_tensor_buf(tensor_buf.data, get_tensor_data_type(tensor), tensor_buf.dataSize)) {
+        return StatusCode::FAILURE;
+      }
 
-    Qnn_ClientBuffer_t tensor_buf = QNN_CLIENT_BUFFER_INIT;
-    tensor_buf.dataSize = get_tensor_size(tensor + i, tensor_shape);
-    if (StatusCode::SUCCESS !=
-        allocate_tensor_buf(tensor_buf.data, get_tensor_data_type(tensor), tensor_buf.dataSize)) {
-      return StatusCode::FAILURE;
+      set_tensor_client_buf(tensor + i, tensor_buf);
     }
-
-    set_tensor_client_buf(tensor + i, tensor_buf);
   }
 
   return StatusCode::SUCCESS;
@@ -211,17 +212,17 @@ StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
 /// @return SUCCESS or FAILURE
 StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_data)
 {
-  if ((inputs == nullptr) || (get_tensor_dimensions(inputs) == nullptr)) {
+  if ((inputs_ == nullptr) || (get_tensor_dimensions(inputs_) == nullptr)) {
     return StatusCode::FAILURE;
   }
 
   std::vector<size_t> shape;
-  for (size_t i = 0; i < get_tensor_rank(inputs); i++) {
-    shape.emplace_back(get_tensor_dimensions(inputs)[i]);
+  for (size_t i = 0; i < get_tensor_rank(inputs_); i++) {
+    shape.emplace_back(get_tensor_dimensions(inputs_)[i]);
   }
 
-  if (-1 != qnn_dtype_to_qrb_dtype(get_tensor_data_type(inputs))) {
-    size_t tensor_size = get_tensor_size(inputs, shape);
+  if (-1 != qnn_dtype_to_qrb_dtype(get_tensor_data_type(inputs_))) {
+    size_t tensor_size = get_tensor_size(inputs_, shape);
 
     if (tensor_size != input_data.size()) {
       QRB_ERROR("The size of input tensor should be %u byte, but receive %u byte", tensor_size,
@@ -230,7 +231,7 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_dat
     }
 
     // get_tensor_client_buf(input).data is const and can not point to input_tensor_data directly
-    memcpy(static_cast<char *>(get_tensor_client_buf(inputs).data), input_data.data(),
+    memcpy(static_cast<char *>(get_tensor_client_buf(inputs_).data), input_data.data(),
         input_data.size());
   } else {
     QRB_ERROR("Input data type of model is not suppport!");
@@ -272,12 +273,12 @@ std::vector<OutputTensor> QnnTensor::read_output_tensors(const uint32_t number_o
 {
   auto res = std::vector<OutputTensor>(number_of_outputs);
 
-  if (nullptr == outputs) {
+  if (nullptr == outputs_) {
     return std::vector<OutputTensor>();
   }
 
   for (uint32_t i = 0; i < number_of_outputs; i++) {
-    const auto output = &(outputs[i]);
+    const auto output = &(outputs_[i]);
 
     std::vector<size_t> shape;
     for (size_t i = 0; i < get_tensor_rank(output); i++) {

@@ -150,7 +150,7 @@ void QrbRosPostProcessWithDmaNode::infer_callback(const TensorList & msg)
     cv::normalize(depth_518, depth_normalized, 0, 255, cv::NORM_MINMAX, CV_8UC1);
 
     // Save raw depth map (grayscale)
-    std::string depth_gray_filename = "/home/ubuntu/ros-ws/nn_output/" + std::to_string(frame_count) + "_gray.png";
+    std::string depth_gray_filename = "/tmp/nn_output/" + std::to_string(frame_count) + "_gray.png";
     std::string output_dir = get_directory_path(depth_gray_filename);
     if (!output_dir.empty() && !ensure_directory_exists(output_dir)) {
       RCLCPP_WARN(this->get_logger(), "Failed to create output directory: %s", output_dir.c_str());
@@ -165,7 +165,7 @@ void QrbRosPostProcessWithDmaNode::infer_callback(const TensorList & msg)
     cv::Mat colored = postprocess(depth, last_orig_w_, last_orig_h_, last_scale_, last_pad_left_, last_pad_top_);
 
     // Save colored depth map
-    std::string depth_color_filename = "/home/ubuntu/ros-ws/nn_output/" + std::to_string(frame_count) + "_color.png";
+    std::string depth_color_filename = "/tmp/nn_output/" + std::to_string(frame_count) + "_color.png";
     // Directory should already exist from grayscale save, but check anyway
     std::string output_dir_color = get_directory_path(depth_color_filename);
     if (!output_dir_color.empty() && !ensure_directory_exists(output_dir_color)) {
