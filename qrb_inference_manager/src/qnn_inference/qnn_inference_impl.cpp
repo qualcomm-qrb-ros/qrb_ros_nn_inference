@@ -212,18 +212,18 @@ StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
 /// @return SUCCESS or FAILURE
 StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_data)
 {
-  if (inputs_ == nullptr) {
+  if (inputs == nullptr) {
     return StatusCode::FAILURE;
   }
 
   // Calculate total expected size for all input tensors
   size_t total_expected_size = 0;
-  for (uint32_t i = 0; i < num_of_input_tensors_; i++) {
+  for (uint32_t i = 0; i < num_of_input_tensors; i++) {
     std::vector<size_t> shape;
-    for (size_t j = 0; j < get_tensor_rank(&inputs_[i]); j++) {
-      shape.emplace_back(get_tensor_dimensions(&inputs_[i])[j]);
+    for (size_t j = 0; j < get_tensor_rank(&inputs[i]); j++) {
+      shape.emplace_back(get_tensor_dimensions(&inputs[i])[j]);
     }
-    total_expected_size += get_tensor_size(&inputs_[i], shape);
+    total_expected_size += get_tensor_size(&inputs[i], shape);
   }
 
   if (total_expected_size != input_data.size()) {
@@ -234,21 +234,21 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_dat
 
   // Fill data into each input tensor
   size_t data_offset = 0;
-  for (uint32_t i = 0; i < num_of_input_tensors_; i++) {
+  for (uint32_t i = 0; i < num_of_input_tensors; i++) {
     std::vector<size_t> shape;
-    for (size_t j = 0; j < get_tensor_rank(&inputs_[i]); j++) {
-      shape.emplace_back(get_tensor_dimensions(&inputs_[i])[j]);
+    for (size_t j = 0; j < get_tensor_rank(&inputs[i]); j++) {
+      shape.emplace_back(get_tensor_dimensions(&inputs[i])[j]);
     }
 
-    if (-1 == qnn_dtype_to_qrb_dtype(get_tensor_data_type(&inputs_[i]))) {
+    if (-1 == qnn_dtype_to_qrb_dtype(get_tensor_data_type(&inputs[i]))) {
       QRB_ERROR("Input tensor ", i, " data type is not supported!");
       return StatusCode::FAILURE;
     }
 
-    size_t tensor_size = get_tensor_size(&inputs_[i], shape);
+    size_t tensor_size = get_tensor_size(&inputs[i], shape);
 
     // Copy data for this tensor
-    memcpy(static_cast<char *>(get_tensor_client_buf(&inputs_[i]).data),
+    memcpy(static_cast<char *>(get_tensor_client_buf(&inputs[i]).data),
         input_data.data() + data_offset, tensor_size);
 
     data_offset += tensor_size;
