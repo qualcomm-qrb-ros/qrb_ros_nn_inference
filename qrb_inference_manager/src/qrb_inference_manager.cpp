@@ -50,8 +50,9 @@ bool QrbInferenceManager::inference_execute(const std::vector<uint8_t> & input_t
   return false;
 }
 
-bool QrbInferenceManager::inference_execute_dmabuf(
-    int dmabuf_fd, uint32_t dmabuf_size, uint64_t dmabuf_offset)
+bool QrbInferenceManager::inference_execute_dmabuf(int dmabuf_fd,
+    uint32_t dmabuf_size,
+    uint64_t dmabuf_offset)
 {
   auto * qnn_inference = dynamic_cast<QnnInference *>(qrb_inference_.get());
   if (nullptr == qnn_inference) {

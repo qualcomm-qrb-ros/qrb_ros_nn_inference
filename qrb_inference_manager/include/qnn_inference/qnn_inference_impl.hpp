@@ -14,9 +14,9 @@
 #include <numeric>
 #include <vector>
 
+#include "HTP/QnnHtpMem.h"
 #include "QnnInterface.h"
 #include "QnnMem.h"
-#include "HTP/QnnHtpMem.h"
 #include "System/QnnSystemInterface.h"
 #include "qrb_inference.hpp"
 

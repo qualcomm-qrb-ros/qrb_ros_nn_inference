@@ -4,15 +4,16 @@
 #ifndef QRB_INFERENCE_MANAGER_QNN_INFERENCE_HPP_
 #define QRB_INFERENCE_MANAGER_QNN_INFERENCE_HPP_
 
+#include <memory>
+
 #include "qnn_inference/qnn_inference_impl.hpp"
 #include "qrb_inference.hpp"
-
-#include <memory>
 
 namespace qrb::inference_mgr
 {
 
-class RpcMemManager {
+class RpcMemManager
+{
 public:
   RpcMemManager() = default;
 
@@ -20,9 +21,9 @@ public:
   // to downstream (e.g. post-process node) which will call rpcmem_free(ptr) itself.
   void disown() { owned_ = false; }
 
-  ~RpcMemManager() {
+  ~RpcMemManager()
+  {
     if (owned_ && ptr_ != nullptr && rpcmem_free_ != nullptr) {
-      QRB_INFO("[MEMORY] RpcMemManager destructor: Freeing ptr=", ptr_, " fd=", fd_, " size=", size_);
       rpcmem_free_(ptr_);
       ptr_ = nullptr;
     }
@@ -33,10 +34,11 @@ public:
   }
 
   // Delete copy constructor and assignment
-  RpcMemManager(const RpcMemManager&) = delete;
-  RpcMemManager& operator=(const RpcMemManager&) = delete;
+  RpcMemManager(const RpcMemManager &) = delete;
+  RpcMemManager & operator=(const RpcMemManager &) = delete;
 
-  StatusCode init() {
+  StatusCode init()
+  {
     libCdspHandle_ = ::dlopen("libcdsprpc.so", RTLD_NOW | RTLD_LOCAL);
     if (nullptr == libCdspHandle_) {
       QRB_ERROR("dlopen(libcdsprpc.so) failed");
@@ -57,7 +59,8 @@ public:
     return StatusCode::SUCCESS;
   }
 
-  StatusCode alloc(size_t size, int heap_id = 25, uint32_t flags = 1) {
+  StatusCode alloc(size_t size, int heap_id = 25, uint32_t flags = 1)
+  {
     if (rpcmem_alloc_ == nullptr) {
       QRB_ERROR("RpcMemManager not initialized");
       return StatusCode::FAILURE;
@@ -81,12 +84,13 @@ public:
     return StatusCode::SUCCESS;
   }
 
-  StatusCode free_mem_ptr(void * ptr) {
+  StatusCode free_mem_ptr(void * ptr)
+  {
     if (ptr != nullptr && rpcmem_free_ != nullptr) {
       rpcmem_free_(ptr);
       ptr = nullptr;
-    }
-    else return StatusCode::FAILURE;
+    } else
+      return StatusCode::FAILURE;
     return StatusCode::SUCCESS;
   }
 

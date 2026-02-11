@@ -1,5 +1,4 @@
 #include "qrb_ros_post_process_with_dma/qrb_ros_post_process_with_dma_node.hpp"
-
 #include "rclcpp/rclcpp.hpp"
 
 int main(int argc, char ** argv)
