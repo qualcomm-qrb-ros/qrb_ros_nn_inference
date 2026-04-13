@@ -47,7 +47,7 @@ rm -rf /opt/qcom/qnn_sdk_v${QNN_SDK_VER} && \
 <summary>Install QNN SDK with on Ubuntu24.04</summary>
 
 ```bash
-sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-noble-ppa && \
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-ppa && \
 sudo apt update && \
 sudo apt install -y libqnn-dev libqnn1
 ```
@@ -76,7 +76,7 @@ cp ./libtensorflowlite_c.so /usr/local/lib
 <summary>Install TensorFlowLite on Ubuntu24.04</summary>
 
 ```bash
-sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-noble-ppa && \
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-ppa && \
 sudo apt update && \
 sudo apt install -y libtensorflow-lite-c-qcom1 libtensorflow-lite-qcom-dev
 ```
