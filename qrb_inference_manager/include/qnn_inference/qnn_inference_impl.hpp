@@ -14,9 +14,9 @@
 #include <numeric>
 #include <vector>
 
+#include "HTP/QnnHtpMem.h"
 #include "QnnInterface.h"
 #include "QnnMem.h"
-#include "HTP/QnnHtpMem.h"
 #include "System/QnnSystemInterface.h"
 #include "qrb_inference.hpp"
 
@@ -129,6 +129,7 @@ public:
   Qnn_Tensor_t * outputs_ = nullptr;
   uint32_t num_of_input_tensors_ = 0;
   uint32_t num_of_output_tensors_ = 0;
+  bool use_mem_handle_ = false;
 
 private:
   StatusCode allocate_tensor_buf(void *& data, Qnn_DataType_t tensor_data_type, uint32_t buf_size);

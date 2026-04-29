@@ -175,6 +175,7 @@ StatusCode QnnInference::inference_execute_dmabuf(
     }
 
     auto io_tensors = QnnTensor(graph_info.num_of_input_tensors, graph_info.num_of_output_tensors);
+    io_tensors.use_mem_handle_ = true;
 
     if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.inputs_,
                                    io_tensors.num_of_input_tensors_, graph_info.input_tensors)) {
@@ -186,36 +187,6 @@ StatusCode QnnInference::inference_execute_dmabuf(
                                    io_tensors.num_of_output_tensors_, graph_info.output_tensors)) {
       QRB_ERROR("Setup output tensors failed!");
       return StatusCode::FAILURE;
-    }
-
-    // DMA-BUF path does not use QnnTensor's per-tensor clientBuf allocations. The setup_tensors()
-    // implementation allocates clientBuf.data for each tensor via malloc(), which will accumulate
-    // on the heap if not explicitly freed per frame. For zero-copy ION path we clear them here.
-    for (uint32_t in_i = 0; in_i < graph_info.num_of_input_tensors; in_i++) {
-      if (io_tensors.inputs_[in_i].version == QNN_TENSOR_VERSION_1 &&
-          io_tensors.inputs_[in_i].v1.clientBuf.data != nullptr) {
-        free(io_tensors.inputs_[in_i].v1.clientBuf.data);
-        io_tensors.inputs_[in_i].v1.clientBuf.data = nullptr;
-        io_tensors.inputs_[in_i].v1.clientBuf.dataSize = 0;
-      } else if (io_tensors.inputs_[in_i].version == QNN_TENSOR_VERSION_2 &&
-                 io_tensors.inputs_[in_i].v2.clientBuf.data != nullptr) {
-        free(io_tensors.inputs_[in_i].v2.clientBuf.data);
-        io_tensors.inputs_[in_i].v2.clientBuf.data = nullptr;
-        io_tensors.inputs_[in_i].v2.clientBuf.dataSize = 0;
-      }
-    }
-    for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
-      if (io_tensors.outputs_[out_i].version == QNN_TENSOR_VERSION_1 &&
-          io_tensors.outputs_[out_i].v1.clientBuf.data != nullptr) {
-        free(io_tensors.outputs_[out_i].v1.clientBuf.data);
-        io_tensors.outputs_[out_i].v1.clientBuf.data = nullptr;
-        io_tensors.outputs_[out_i].v1.clientBuf.dataSize = 0;
-      } else if (io_tensors.outputs_[out_i].version == QNN_TENSOR_VERSION_2 &&
-                 io_tensors.outputs_[out_i].v2.clientBuf.data != nullptr) {
-        free(io_tensors.outputs_[out_i].v2.clientBuf.data);
-        io_tensors.outputs_[out_i].v2.clientBuf.data = nullptr;
-        io_tensors.outputs_[out_i].v2.clientBuf.dataSize = 0;
-      }
     }
 
     // Register input shared buffer as ION (RPCMEM-backed fd).

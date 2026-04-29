@@ -191,16 +191,17 @@ StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
       return StatusCode::FAILURE;
     }
 
-    set_tensor_mem_type(tensor + i, QNN_TENSORMEMTYPE_RAW);
+    if (use_mem_handle_ == false) {
+      set_tensor_mem_type(tensor + i, QNN_TENSORMEMTYPE_RAW);
+      Qnn_ClientBuffer_t tensor_buf = QNN_CLIENT_BUFFER_INIT;
+      tensor_buf.dataSize = get_tensor_size(tensor + i, tensor_shape);
+      if (StatusCode::SUCCESS !=
+          allocate_tensor_buf(tensor_buf.data, get_tensor_data_type(tensor), tensor_buf.dataSize)) {
+        return StatusCode::FAILURE;
+      }
 
-    Qnn_ClientBuffer_t tensor_buf = QNN_CLIENT_BUFFER_INIT;
-    tensor_buf.dataSize = get_tensor_size(tensor + i, tensor_shape);
-    if (StatusCode::SUCCESS !=
-        allocate_tensor_buf(tensor_buf.data, get_tensor_data_type(tensor), tensor_buf.dataSize)) {
-      return StatusCode::FAILURE;
+      set_tensor_client_buf(tensor + i, tensor_buf);
     }
-
-    set_tensor_client_buf(tensor + i, tensor_buf);
   }
 
   return StatusCode::SUCCESS;
@@ -338,12 +339,14 @@ void QnnTensor::free_qnn_tensors(Qnn_Tensor_t * tensors, uint32_t tensors_cnt)
     if (tensors[i].version == QNN_TENSOR_VERSION_1) {
       check_and_free(tensors[i].v1.dimensions);
       check_and_free(tensors[i].v1.name);
-      check_and_free(tensors[i].v1.clientBuf.data);
+      if (use_mem_handle_ == false)
+        check_and_free(tensors[i].v1.clientBuf.data);
       check_and_free(tensors[i].v1.quantizeParams.axisScaleOffsetEncoding.scaleOffset);
     } else if (tensors[i].version == QNN_TENSOR_VERSION_2) {
       check_and_free(tensors[i].v2.dimensions);
       check_and_free(tensors[i].v2.name);
-      check_and_free(tensors[i].v2.clientBuf.data);
+      if (use_mem_handle_ == false)
+        check_and_free(tensors[i].v2.clientBuf.data);
       check_and_free(tensors[i].v2.quantizeParams.axisScaleOffsetEncoding.scaleOffset);
       check_and_free(tensors[i].v2.isDynamicDimensions);
     }
