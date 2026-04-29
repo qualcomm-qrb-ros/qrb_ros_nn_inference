@@ -508,20 +508,24 @@ void QnnInference::free_graphs_info()
     return;
   }
 
+  auto check_and_free = [](auto & ptr) {
+    if (ptr != nullptr) {
+      free((void *)ptr);
+      ptr = nullptr;
+    }
+  };
+
   for (uint32_t i = 0; i < graphs_count_; i++) {
     auto & graph_info = graphs_info_[i];
-    free(graph_info->graph_name);
-    graph_info->graph_name = nullptr;
+    check_and_free(graph_info->graph_name);
 
     QnnTensor tensor_ops;
     tensor_ops.free_qnn_tensors(graph_info->input_tensors, graph_info->num_of_input_tensors);
     tensor_ops.free_qnn_tensors(graph_info->output_tensors, graph_info->num_of_output_tensors);
   }
 
-  free(*graphs_info_);
-  *graphs_info_ = nullptr;
-  free(graphs_info_);
-  graphs_info_ = nullptr;
+  check_and_free(*graphs_info_);
+  check_and_free(graphs_info_);
 }
 
 void QnnInference::free_context()
