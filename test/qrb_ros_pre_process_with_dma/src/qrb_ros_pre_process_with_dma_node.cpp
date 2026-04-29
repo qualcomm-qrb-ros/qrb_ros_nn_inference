@@ -3,12 +3,12 @@
 
 #include "qrb_ros_pre_process_with_dma/qrb_ros_pre_process_with_dma_node.hpp"
 
+#include <dlfcn.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstring>
-#include <dlfcn.h>
-
 #include <opencv2/imgcodecs.hpp>
 
 #include "rclcpp_components/register_node_macro.hpp"
@@ -23,14 +23,14 @@ static inline size_t element_count_nhwc(int n, int h, int w, int c)
 }
 
 QrbRosPreProcessWithDmaNode::QrbRosPreProcessWithDmaNode(const rclcpp::NodeOptions & options)
-: Node("qrb_ros_pre_process_with_dma", options)
+  : Node("qrb_ros_pre_process_with_dma", options)
 {
   in_w_ = this->declare_parameter<int>("input_width", 518);
   in_h_ = this->declare_parameter<int>("input_height", 518);
 
   // Subscribe images (same behavior as sample_depth_estimation):
-  image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-    "/image_raw", 10, std::bind(&QrbRosPreProcessWithDmaNode::image_callback, this, std::placeholders::_1));
+  image_sub_ = this->create_subscription<sensor_msgs::msg::Image>("/image_raw", 10,
+      std::bind(&QrbRosPreProcessWithDmaNode::image_callback, this, std::placeholders::_1));
 
   infer_pub_ = this->create_publisher<TensorList>("qrb_inference_input_tensor", 10);
 
@@ -58,7 +58,8 @@ QrbRosPreProcessWithDmaNode::QrbRosPreProcessWithDmaNode(const rclcpp::NodeOptio
     throw std::runtime_error("resolve rpcmem symbols failed");
   }
 
-  // Required on some Linux targets so that subsequent rpcmem_alloc buffers can be mapped via FastRPC.
+  // Required on some Linux targets so that subsequent rpcmem_alloc buffers can be mapped via
+  // FastRPC.
   rpcmem_init();
   RCLCPP_INFO(this->get_logger(), "rpcmem_init done");
 
@@ -66,15 +67,16 @@ QrbRosPreProcessWithDmaNode::QrbRosPreProcessWithDmaNode(const rclcpp::NodeOptio
   constexpr uint32_t RPCMEM_DEFAULT_FLAGS = 1;
 
   /**
-  * Defination: void* rpcmem_alloc(int heapid, uint32 flags, int size);
-  * Allocate a buffer via ION and register it with the FastRPC framework.
-  * @param[in] heapid  Heap ID to use for memory allocation.
-  * @param[in] flags   ION flags to use for memory allocation.
-  * @param[in] size    Buffer size to allocate.
-  * @return            Pointer to the buffer on success; NULL on failure.
-  */
+   * Defination: void* rpcmem_alloc(int heapid, uint32 flags, int size);
+   * Allocate a buffer via ION and register it with the FastRPC framework.
+   * @param[in] heapid  Heap ID to use for memory allocation.
+   * @param[in] flags   ION flags to use for memory allocation.
+   * @param[in] size    Buffer size to allocate.
+   * @return            Pointer to the buffer on success; NULL on failure.
+   */
   // ! Allocate a buffer via ION and register it with the FastRPC framework
-  input_ptr_ = rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, static_cast<int>(input_bytes_));
+  input_ptr_ =
+      rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, static_cast<int>(input_bytes_));
   if (nullptr == input_ptr_) {
     ::dlclose(rpcmem_lib_);
     rpcmem_lib_ = nullptr;
@@ -89,7 +91,8 @@ QrbRosPreProcessWithDmaNode::QrbRosPreProcessWithDmaNode(const rclcpp::NodeOptio
     throw std::runtime_error("rpcmem_to_fd failed");
   }
 
-  RCLCPP_INFO(this->get_logger(), "Allocated RPCMEM input: fd=%d bytes=%zu", input_fd_, input_bytes_);
+  RCLCPP_INFO(
+      this->get_logger(), "Allocated RPCMEM input: fd=%d bytes=%zu", input_fd_, input_bytes_);
   RCLCPP_INFO(this->get_logger(), "qrb_ros_pre_process_with_dma node started");
 }
 
@@ -106,7 +109,8 @@ QrbRosPreProcessWithDmaNode::~QrbRosPreProcessWithDmaNode()
     ::dlclose(rpcmem_lib_);
     rpcmem_lib_ = nullptr;
   }
-  RCLCPP_INFO(this->get_logger(), "qrb_ros_pre_process_with_dma node destroyed, resources cleaned up");
+  RCLCPP_INFO(
+      this->get_logger(), "qrb_ros_pre_process_with_dma node destroyed, resources cleaned up");
 }
 
 cv::Mat QrbRosPreProcessWithDmaNode::nv12_to_bgr(const uint8_t * nv12, int width, int height) const
@@ -117,8 +121,13 @@ cv::Mat QrbRosPreProcessWithDmaNode::nv12_to_bgr(const uint8_t * nv12, int width
   return bgr;
 }
 
-cv::Mat QrbRosPreProcessWithDmaNode::preprocess(const cv::Mat & bgr, std::vector<float> & nhwc,
-    int & orig_w, int & orig_h, float & scale, int & pad_left, int & pad_top) const
+cv::Mat QrbRosPreProcessWithDmaNode::preprocess(const cv::Mat & bgr,
+    std::vector<float> & nhwc,
+    int & orig_w,
+    int & orig_h,
+    float & scale,
+    int & pad_left,
+    int & pad_top) const
 {
   orig_h = bgr.rows;
   orig_w = bgr.cols;
@@ -145,9 +154,8 @@ cv::Mat QrbRosPreProcessWithDmaNode::preprocess(const cv::Mat & bgr, std::vector
   cv::resize(bgr, resized, cv::Size(new_w, new_h), 0, 0, cv::INTER_CUBIC);
 
   cv::Mat padded;
-  cv::copyMakeBorder(
-    resized, padded, pad_top_local, pad_bottom, pad_left_local, pad_right, cv::BORDER_CONSTANT,
-    cv::Scalar(0, 0, 0));
+  cv::copyMakeBorder(resized, padded, pad_top_local, pad_bottom, pad_left_local, pad_right,
+      cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
 
   // Convert to float32 [0,1] and NHWC
   cv::Mat f32;
@@ -168,7 +176,8 @@ void QrbRosPreProcessWithDmaNode::image_callback(const sensor_msgs::msg::Image::
   if (msg->encoding == "bgr8") {
     bgr = cv_bridge::toCvCopy(*msg, "bgr8")->image;
   } else if (msg->encoding == "nv12") {
-    bgr = nv12_to_bgr(msg->data.data(), static_cast<int>(msg->width), static_cast<int>(msg->height));
+    bgr =
+        nv12_to_bgr(msg->data.data(), static_cast<int>(msg->width), static_cast<int>(msg->height));
   } else {
     RCLCPP_ERROR(this->get_logger(), "Unsupported image encoding: %s", msg->encoding.c_str());
     return;
@@ -186,7 +195,8 @@ void QrbRosPreProcessWithDmaNode::image_callback(const sensor_msgs::msg::Image::
   Tensor t;
   t.data_type = 2;  // float32
   t.name = "depth_anything_input_tensor";
-  t.shape = {1u, static_cast<uint32_t>(in_h_), static_cast<uint32_t>(in_w_), static_cast<uint32_t>(in_c_)};
+  t.shape = { 1u, static_cast<uint32_t>(in_h_), static_cast<uint32_t>(in_w_),
+    static_cast<uint32_t>(in_c_) };
 
   // Toggle between DMA-BUF and data copy modes for performance testing
   // Set USE_DMABUF to true for zero-copy mode (requires same process)
@@ -198,7 +208,8 @@ void QrbRosPreProcessWithDmaNode::image_callback(const sensor_msgs::msg::Image::
     t.dmabuf_fd = input_fd_;
     t.dmabuf_size = static_cast<uint32_t>(input_bytes_);
     t.dmabuf_offset = 0;
-    t.dmabuf_ptr = reinterpret_cast<uint64_t>(input_ptr_);  // Pass pointer address for memory management
+    t.dmabuf_ptr =
+        reinterpret_cast<uint64_t>(input_ptr_);  // Pass pointer address for memory management
     // t.data left empty for zero-copy
   } else {
     // Data copy mode (working across processes)
@@ -211,16 +222,18 @@ void QrbRosPreProcessWithDmaNode::image_callback(const sensor_msgs::msg::Image::
   }
 
   // Print timestamp before publishing (millisecond precision)
-  auto now = std::chrono::system_clock::now();
-  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-  RCLCPP_INFO(this->get_logger(), "[TIMESTAMP] Before publish: %ld ms", ms);
+  // auto now = std::chrono::system_clock::now();
+  // auto ms =
+  // std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+  // RCLCPP_INFO(this->get_logger(), "[TIMESTAMP] Before publish: %ld ms", ms);
 
   // debug: show topic wiring (namespace + absolute topic)
   RCLCPP_INFO(this->get_logger(), "Publishing to topic: %s", infer_pub_->get_topic_name());
   tl.tensor_list.push_back(std::move(t));
   infer_pub_->publish(tl);
 
-  RCLCPP_INFO(this->get_logger(), "Published input tensor via data copy: size=%zu bytes", input_bytes_);
+  RCLCPP_INFO(
+      this->get_logger(), "Published input tensor via data copy: size=%zu bytes", input_bytes_);
 }
 
 }  // namespace qrb_ros_pre_process_with_dma

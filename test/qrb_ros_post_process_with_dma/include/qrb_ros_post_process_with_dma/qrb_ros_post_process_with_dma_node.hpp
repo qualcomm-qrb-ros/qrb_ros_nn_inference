@@ -29,28 +29,32 @@ private:
   void infer_callback(const TensorList & msg);
 
   // Post-process (same math as python sample)
-  cv::Mat postprocess(const float * depth, int orig_w, int orig_h, float scale, int pad_left,
+  cv::Mat postprocess(const float * depth,
+      int orig_w,
+      int orig_h,
+      float scale,
+      int pad_left,
       int pad_top) const;
 
 private:
-  rclcpp::Subscription<TensorList>::SharedPtr infer_sub_{nullptr};
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_pub_{nullptr};
+  rclcpp::Subscription<TensorList>::SharedPtr infer_sub_{ nullptr };
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_pub_{ nullptr };
 
   // state from last preprocess (these need to be shared between pre and post process nodes)
   // For now, using fixed values based on typical image size
-  int last_orig_w_{640};
-  int last_orig_h_{480};
-  float last_scale_{1.0f};
-  int last_pad_left_{0};
-  int last_pad_top_{0};
+  int last_orig_w_{ 640 };
+  int last_orig_h_{ 480 };
+  float last_scale_{ 1.0f };
+  int last_pad_left_{ 0 };
+  int last_pad_top_{ 0 };
 
   // model input config (NHWC float32)
-  int in_w_{518};
-  int in_h_{518};
-  int in_c_{3};
+  int in_w_{ 518 };
+  int in_h_{ 518 };
+  int in_c_{ 3 };
 
   // RPCMEM library handle for memory management
-  void * rpcmem_lib_{nullptr};
+  void * rpcmem_lib_{ nullptr };
 };
 
 }  // namespace qrb_ros_post_process_with_dma
