@@ -127,7 +127,7 @@ Please see [qrb_inference_manager APIs](./qrb_inference_manager/Documentation.md
 Add Qualcomm IOT PPA for Ubuntu:
 
 ```bash
-sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-noble-ppa
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-ppa
 sudo add-apt-repository ppa:ubuntu-qcom-iot/qirp
 sudo apt update
 ```
@@ -220,7 +220,7 @@ Install dependencies:
 
 ```bash
 sudo apt install -y software-properties-common
-sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-noble-ppa
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-ppa
 sudo apt update
 sudo apt install -y libtensorflow-lite-c-qcom1 libtensorflow-lite-qcom-dev libqnn-dev libqnn1
 ```

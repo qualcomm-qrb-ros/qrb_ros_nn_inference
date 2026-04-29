@@ -127,7 +127,6 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
     }
 #endif
   }
-
   return StatusCode::SUCCESS;
 }
 
