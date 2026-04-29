@@ -27,23 +27,28 @@ private:
 
   // Pre-process (same math as python sample)
   cv::Mat nv12_to_bgr(const uint8_t * nv12, int width, int height) const;
-  cv::Mat preprocess(const cv::Mat & bgr, std::vector<float> & chw, int & orig_w, int & orig_h,
-      float & scale, int & pad_left, int & pad_top) const;
+  cv::Mat preprocess(const cv::Mat & bgr,
+      std::vector<float> & chw,
+      int & orig_w,
+      int & orig_h,
+      float & scale,
+      int & pad_left,
+      int & pad_top) const;
 
 private:
-  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_{nullptr};
-  rclcpp::Publisher<TensorList>::SharedPtr infer_pub_{nullptr};
+  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_{ nullptr };
+  rclcpp::Publisher<TensorList>::SharedPtr infer_pub_{ nullptr };
 
   // model input config (NHWC float32)
-  int in_w_{518};
-  int in_h_{518};
-  int in_c_{3};
+  int in_w_{ 518 };
+  int in_h_{ 518 };
+  int in_c_{ 3 };
 
   // RPCMEM (ION) input buffer
-  void * rpcmem_lib_{nullptr};
-  void * input_ptr_{nullptr};
-  int input_fd_{-1};
-  size_t input_bytes_{0};
+  void * rpcmem_lib_{ nullptr };
+  void * input_ptr_{ nullptr };
+  int input_fd_{ -1 };
+  size_t input_bytes_{ 0 };
 };
 
 }  // namespace qrb_ros_pre_process_with_dma

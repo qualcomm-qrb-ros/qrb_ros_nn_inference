@@ -131,21 +131,12 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
   return StatusCode::SUCCESS;
 }
 
-StatusCode QnnInference::inference_execute_dmabuf(
-    int dmabuf_fd, uint32_t dmabuf_size, uint64_t dmabuf_offset)
+StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
+    uint32_t dmabuf_size,
+    uint64_t dmabuf_offset)
 {
   // Track previous inference output resources for cleanup.
-  //
-  // NOTE:
-  // - Output RPCMEM buffers are freed by the downstream consumer (post-process node) using dmabuf_ptr.
-  // - Therefore, we must NOT keep an owning RpcMemManager here; otherwise we'd risk double-free.
-  // - We still must memDeRegister the output mem handles to avoid leaking QNN registrations.
   static std::vector<Qnn_MemHandle_t> prev_output_handles;
-  static int inference_count = 0;
-  inference_count++;
-
-  QRB_INFO("========== INFERENCE #", inference_count, " START ==========");
-  QRB_INFO("[MEMORY] Input: fd=", dmabuf_fd, " size=", dmabuf_size, " offset=", dmabuf_offset);
 
   if (dmabuf_fd < 0 || dmabuf_size == 0) {
     QRB_ERROR("Invalid DMA-BUF input: fd=", dmabuf_fd, " size=", dmabuf_size);
@@ -154,8 +145,6 @@ StatusCode QnnInference::inference_execute_dmabuf(
 
   // Clean up previous output handles before starting new inference
   if (!prev_output_handles.empty()) {
-    QRB_INFO("[MEMORY] Cleaning up ", prev_output_handles.size(),
-        " previous output handles from inference #", inference_count - 1);
     for (auto & handle : prev_output_handles) {
       if (handle != nullptr) {
         qnn_interface_->interface_.memDeRegister(&handle, 1u);
@@ -324,19 +313,9 @@ StatusCode QnnInference::inference_execute_dmabuf(
       s_output_keepalive.push_back(rpc_mgr);
     }
 
-    // Execute graph
-    QRB_DEBUG("=== About to execute graph ===");
-    QRB_DEBUG("Graph handle: ", graph_info.graph);
-    QRB_DEBUG("Num inputs: ", io_tensors.num_of_input_tensors_);
-    QRB_DEBUG("Num outputs: ", io_tensors.num_of_output_tensors_);
-    QRB_DEBUG("Input[0] memType: ", io_tensors.inputs_[0].v1.memType);
-    QRB_DEBUG("Calling graphExecute...");
-
     auto exec_rc = qnn_interface_->interface_.graphExecute(graph_info.graph, io_tensors.inputs_,
         io_tensors.num_of_input_tensors_, io_tensors.outputs_, io_tensors.num_of_output_tensors_,
         nullptr, nullptr);
-
-    QRB_DEBUG("graphExecute returned: ", exec_rc);
 
     if (QNN_GRAPH_NO_ERROR != exec_rc) {
       QRB_ERROR("QNN graphExecute failed with code: ", exec_rc);
@@ -344,17 +323,11 @@ StatusCode QnnInference::inference_execute_dmabuf(
       return StatusCode::FAILURE;
     }
 
-    QRB_DEBUG("graphExecute succeeded!");
-
     // Immediately deregister input handle after graph execution completes
     // The input memory is owned by the caller (pre-process node) and will be reused
     deregister_all_tensors();
 
 #ifndef __hexagon__
-    // Produce OutputTensor list with DMA-BUF metadata and no data copy.
-    QRB_DEBUG("=== Processing output tensors ===");
-    QRB_DEBUG("Number of output tensors: ", graph_info.num_of_output_tensors);
-
     output_tensor_.clear();
     output_tensor_.reserve(graph_info.num_of_output_tensors);
 
@@ -385,10 +358,8 @@ StatusCode QnnInference::inference_execute_dmabuf(
 #endif
 
     prev_output_handles = std::move(output_mem_handles);
-    QRB_DEBUG("Saved ", prev_output_handles.size(), " output handles for next cleanup");
   }
 
-  QRB_DEBUG("inference_execute_dmabuf returning SUCCESS");
   return StatusCode::SUCCESS;
 }
 

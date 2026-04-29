@@ -1,15 +1,15 @@
 #include "qrb_ros_post_process_with_dma/qrb_ros_post_process_with_dma_node.hpp"
 
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstring>
 #include <dlfcn.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstring>
 #include <opencv2/imgcodecs.hpp>
 
 #include "rclcpp_components/register_node_macro.hpp"
@@ -44,16 +44,15 @@ static std::string get_directory_path(const std::string & filepath)
 }
 
 QrbRosPostProcessWithDmaNode::QrbRosPostProcessWithDmaNode(const rclcpp::NodeOptions & options)
-: Node("qrb_ros_post_process_with_dma", options)
+  : Node("qrb_ros_post_process_with_dma", options)
 {
   in_w_ = this->declare_parameter<int>("input_width", 518);
   in_h_ = this->declare_parameter<int>("input_height", 518);
 
   depth_pub_ = this->create_publisher<sensor_msgs::msg::Image>("depth_map", 10);
 
-  infer_sub_ = this->create_subscription<TensorList>(
-    "qrb_inference_output_tensor", 10,
-    std::bind(&QrbRosPostProcessWithDmaNode::infer_callback, this, std::placeholders::_1));
+  infer_sub_ = this->create_subscription<TensorList>("qrb_inference_output_tensor", 10,
+      std::bind(&QrbRosPostProcessWithDmaNode::infer_callback, this, std::placeholders::_1));
 
   // Initialize RPCMEM for memory management
   using RpcMemInitFn_t = void (*)(void);
@@ -81,11 +80,16 @@ QrbRosPostProcessWithDmaNode::~QrbRosPostProcessWithDmaNode()
     ::dlclose(rpcmem_lib_);
     rpcmem_lib_ = nullptr;
   }
-  RCLCPP_INFO(this->get_logger(), "qrb_ros_post_process_with_dma node destroyed, resources cleaned up");
+  RCLCPP_INFO(
+      this->get_logger(), "qrb_ros_post_process_with_dma node destroyed, resources cleaned up");
 }
 
-cv::Mat QrbRosPostProcessWithDmaNode::postprocess(const float * depth, int orig_w, int orig_h, float scale,
-    int pad_left, int pad_top) const
+cv::Mat QrbRosPostProcessWithDmaNode::postprocess(const float * depth,
+    int orig_w,
+    int orig_h,
+    float scale,
+    int pad_left,
+    int pad_top) const
 {
   // Input depth is expected to be [518,518,1] float32
   cv::Mat depth_518(in_h_, in_w_, CV_32FC1, const_cast<float *>(depth));
@@ -118,29 +122,33 @@ void QrbRosPostProcessWithDmaNode::infer_callback(const TensorList & msg)
   static int frame_count = 0;
   frame_count++;
 
-  RCLCPP_INFO(this->get_logger(), "========== POST-PROCESS Frame #%d START ==========", frame_count);
+  RCLCPP_INFO(
+      this->get_logger(), "========== POST-PROCESS Frame #%d START ==========", frame_count);
   RCLCPP_INFO(this->get_logger(), "infer_callback called. tensors=%zu", msg.tensor_list.size());
 
   // Expect output as DMA-BUF
   for (const auto & t : msg.tensor_list) {
     RCLCPP_INFO(this->get_logger(), "[MEMORY] Received tensor: fd=%d, size=%u, ptr=0x%lx",
-                t.dmabuf_fd, t.dmabuf_size, t.dmabuf_ptr);
+        t.dmabuf_fd, t.dmabuf_size, t.dmabuf_ptr);
 
     if (t.dmabuf_fd < 0) {
-      RCLCPP_ERROR(this->get_logger(), "Received non-DMA output (data copy path). size=%zu", t.data.size());
+      RCLCPP_ERROR(
+          this->get_logger(), "Received non-DMA output (data copy path). size=%zu", t.data.size());
       continue;
     }
 
     // Map output fd using mmap
-    void * mapped_addr = mmap(nullptr, t.dmabuf_size, PROT_READ | PROT_WRITE, MAP_SHARED, t.dmabuf_fd, 0);
+    void * mapped_addr =
+        mmap(nullptr, t.dmabuf_size, PROT_READ | PROT_WRITE, MAP_SHARED, t.dmabuf_fd, 0);
     if (mapped_addr == MAP_FAILED) {
-      RCLCPP_ERROR(this->get_logger(), "Failed to mmap output dmabuf fd=%d, size=%u", t.dmabuf_fd, t.dmabuf_size);
+      RCLCPP_ERROR(this->get_logger(), "Failed to mmap output dmabuf fd=%d, size=%u", t.dmabuf_fd,
+          t.dmabuf_size);
       continue;
     }
     RCLCPP_INFO(this->get_logger(), "[MEMORY] mmap successful: mapped_addr=%p", mapped_addr);
 
     const auto * depth = reinterpret_cast<const float *>(
-      reinterpret_cast<const uint8_t *>(mapped_addr) + t.dmabuf_offset);
+        reinterpret_cast<const uint8_t *>(mapped_addr) + t.dmabuf_offset);
 
     // Save raw depth data (518x518 float32) for verification
     cv::Mat depth_518(in_h_, in_w_, CV_32FC1, const_cast<float *>(depth));
@@ -150,7 +158,7 @@ void QrbRosPostProcessWithDmaNode::infer_callback(const TensorList & msg)
     cv::normalize(depth_518, depth_normalized, 0, 255, cv::NORM_MINMAX, CV_8UC1);
 
     // Save raw depth map (grayscale)
-    std::string depth_gray_filename = "/home/ubuntu/ros-ws/nn_output/" + std::to_string(frame_count) + "_gray.png";
+    std::string depth_gray_filename = "/tmp/nn_output/" + std::to_string(frame_count) + "_gray.png";
     std::string output_dir = get_directory_path(depth_gray_filename);
     if (!output_dir.empty() && !ensure_directory_exists(output_dir)) {
       RCLCPP_WARN(this->get_logger(), "Failed to create output directory: %s", output_dir.c_str());
@@ -158,23 +166,29 @@ void QrbRosPostProcessWithDmaNode::infer_callback(const TensorList & msg)
     if (cv::imwrite(depth_gray_filename, depth_normalized)) {
       RCLCPP_INFO(this->get_logger(), "Saved raw depth map to: %s", depth_gray_filename.c_str());
     } else {
-      RCLCPP_ERROR(this->get_logger(), "Failed to save raw depth map to: %s", depth_gray_filename.c_str());
+      RCLCPP_ERROR(
+          this->get_logger(), "Failed to save raw depth map to: %s", depth_gray_filename.c_str());
     }
 
     // Postprocess and create colored depth map
-    cv::Mat colored = postprocess(depth, last_orig_w_, last_orig_h_, last_scale_, last_pad_left_, last_pad_top_);
+    cv::Mat colored =
+        postprocess(depth, last_orig_w_, last_orig_h_, last_scale_, last_pad_left_, last_pad_top_);
 
     // Save colored depth map
-    std::string depth_color_filename = "/home/ubuntu/ros-ws/nn_output/" + std::to_string(frame_count) + "_color.png";
+    std::string depth_color_filename =
+        "/tmp/nn_output/" + std::to_string(frame_count) + "_color.png";
     // Directory should already exist from grayscale save, but check anyway
     std::string output_dir_color = get_directory_path(depth_color_filename);
     if (!output_dir_color.empty() && !ensure_directory_exists(output_dir_color)) {
-      RCLCPP_WARN(this->get_logger(), "Failed to create output directory: %s", output_dir_color.c_str());
+      RCLCPP_WARN(
+          this->get_logger(), "Failed to create output directory: %s", output_dir_color.c_str());
     }
     if (cv::imwrite(depth_color_filename, colored)) {
-      RCLCPP_INFO(this->get_logger(), "Saved colored depth map to: %s", depth_color_filename.c_str());
+      RCLCPP_INFO(
+          this->get_logger(), "Saved colored depth map to: %s", depth_color_filename.c_str());
     } else {
-      RCLCPP_ERROR(this->get_logger(), "Failed to save colored depth map to: %s", depth_color_filename.c_str());
+      RCLCPP_ERROR(this->get_logger(), "Failed to save colored depth map to: %s",
+          depth_color_filename.c_str());
     }
 
     sensor_msgs::msg::Image out_msg;
@@ -203,7 +217,8 @@ void QrbRosPostProcessWithDmaNode::infer_callback(const TensorList & msg)
       if (rpcmem_free != nullptr) {
         void * rpc_ptr = reinterpret_cast<void *>(t.dmabuf_ptr);
         rpcmem_free(rpc_ptr);
-        RCLCPP_INFO(this->get_logger(), "Freed RPCMEM buffer for fd=%d, ptr=%p", t.dmabuf_fd, rpc_ptr);
+        RCLCPP_INFO(
+            this->get_logger(), "Freed RPCMEM buffer for fd=%d, ptr=%p", t.dmabuf_fd, rpc_ptr);
       } else {
         RCLCPP_WARN(this->get_logger(), "rpcmem_free symbol not found");
       }
