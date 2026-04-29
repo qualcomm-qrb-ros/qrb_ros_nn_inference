@@ -16,12 +16,36 @@ This node is designed to work in conjunction with:
 - `qrb_ros_pre_process_with_dma`: Pre-processes input images
 - `qrb_ros_nn_inference`: Performs neural network inference
 
-## Features
+## QuickStart
 
-- **Zero-copy DMA-BUF transfer**: Reads inference results directly from DMA-BUF memory
-- **Post-processing pipeline**: Includes rescaling, cropping, normalization, and colorization
-- **Image saving**: Saves both grayscale and colored depth maps to disk
-- **Composable node**: Can be loaded into a component container for intra-process communication
+1. download model
+   ```bash
+   mkdir -p /home/ubuntu/work/AI-models && cd /home/ubuntu/work/AI-models && \
+   wget https://huggingface.co/qualcomm/Depth-Anything-V2/resolve/19ce3645e11de17eed7e869eebcc07dd352834f3/Depth-Anything-V2.bin?download=true -O Depth-Anything-V2.bin
+   ```
+2. download source code
+   ```bash
+   mkdir -p /home/ubuntu/work/ros_ws/src && \
+   cd /home/ubuntu/work/ros_ws/src && \
+   git clone https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference && \
+   git clone https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces && \
+   ```
+3. build qrb_ros_post_process_with_dma
+   ```bash
+   sudo apt install -y ros-dev-tools && \
+   cd qrb_ros_nn_inference && \
+   rm test/qrb_ros_pre_process_with_dma/COLCON_IGNORE && \
+   rm test/qrb_ros_post_process_with_dma/COLCON_IGNORE && \
+   cd /home/ubuntu/work/ros_ws && \
+   colcon build --packages-up-to qrb_ros_pre_process_with_dma qrb_ros_post_process_with_dma
+   ```
+4. run the inference pipeline
+   ```bash
+   source install/setup.bash && ros2 launch qrb_ros_post_process_with_dma launch_with_image_publisher.py
+   ```
+5. post_process node saves depth maps to `/tmp/nn_output/`:
+- `{frame_count}_gray.png`: Grayscale normalized depth map
+- `{frame_count}_color.png`: Colorized depth map using INFERNO colormap
 
 ## Topics
 
@@ -35,26 +59,6 @@ This node is designed to work in conjunction with:
 
 - `input_width` (int, default: 518): Model input width
 - `input_height` (int, default: 518): Model input height
-
-## Launch Files
-
-### launch_with_image_publisher.py
-
-This launch file demonstrates the complete depth estimation pipeline by launching all three nodes in a single composable node container:
-
-1. **image_publisher_node**: Publishes test images
-2. **pre_process_node**: Pre-processes images and publishes tensors
-3. **nn_inference_node**: Performs depth estimation inference
-4. **post_process_node**: Post-processes and visualizes results
-
-**Usage:**
-```bash
-ros2 launch qrb_ros_post_process_with_dma launch_with_image_publisher.py
-```
-
-**Launch Arguments:**
-- `image_path`: Path to input image (default: uses image from new_sample_depth_estimation package)
-- `model_path`: Path to the depth estimation model file (default: /home/ubuntu/work/AI-models/Depth-Anything-V2.bin)
 
 ## Architecture
 
@@ -80,11 +84,4 @@ image_publisher -> /image_raw
 - cv_bridge
 - qrb_ros_tensor_list_msgs
 - qrb_ros_nn_inference
-- lib_mem_dmabuf
 - OpenCV
-
-## Output
-
-The node saves depth maps to `/home/ubuntu/ros-ws/nn_output/`:
-- `{frame_count}_gray.png`: Grayscale normalized depth map
-- `{frame_count}_color.png`: Colorized depth map using INFERNO colormap

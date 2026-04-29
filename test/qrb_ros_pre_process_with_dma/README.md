@@ -16,13 +16,6 @@ This node is designed to work in conjunction with:
 - `qrb_ros_nn_inference`: Performs neural network inference
 - `qrb_ros_post_process_with_dma`: Post-processes inference results
 
-## Features
-
-- **Zero-copy DMA-BUF transfer**: Uses RPCMEM (ION) for efficient memory sharing
-- **Image format support**: Supports both BGR8 and NV12 image encodings
-- **Preprocessing pipeline**: Includes resizing, padding, and normalization
-- **Composable node**: Can be loaded into a component container for intra-process communication
-
 ## Topics
 
 ### Subscribed Topics
@@ -38,7 +31,9 @@ This node is designed to work in conjunction with:
 
 ## Usage
 
-This node is typically launched as part of a composable node container along with the inference and post-processing nodes. See the launch file in `qrb_ros_post_process_with_dma` package for an example.
+This node is typically launched as part of a composable node container along with the inference and post-processing nodes.
+
+See the launch file in `qrb_ros_post_process_with_dma` package for an example.
 
 ## Dependencies
 
