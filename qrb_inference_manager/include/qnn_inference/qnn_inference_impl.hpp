@@ -91,10 +91,10 @@ public:
 
   ~QnnInterface() = default;
 
-  compose_graphs_func compose_graphs;
-  free_graph_info_func free_graph_info;
-  QNN_INTERFACE_VER_TYPE interface;
-  QNN_SYSTEM_INTERFACE_VER_TYPE qnn_system_interface;
+  compose_graphs_func compose_graphs_;
+  free_graph_info_func free_graph_info_;
+  QNN_INTERFACE_VER_TYPE interface_;
+  QNN_SYSTEM_INTERFACE_VER_TYPE qnn_system_interface_;
 
 private:
   template <class T>
@@ -125,10 +125,10 @@ public:
   uint32_t get_tensor_size(const Qnn_Tensor_t * tensor, const std::vector<size_t> shape);
   int32_t qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type);
 
-  Qnn_Tensor_t * inputs = nullptr;
-  Qnn_Tensor_t * outputs = nullptr;
-  uint32_t num_of_input_tensors = 0;
-  uint32_t num_of_output_tensors = 0;
+  Qnn_Tensor_t * inputs_ = nullptr;
+  Qnn_Tensor_t * outputs_ = nullptr;
+  uint32_t num_of_input_tensors_ = 0;
+  uint32_t num_of_output_tensors_ = 0;
 
 private:
   StatusCode allocate_tensor_buf(void *& data, Qnn_DataType_t tensor_data_type, uint32_t buf_size);
