@@ -399,7 +399,8 @@ StatusCode QnnInference::create_device()
 
   if (StatusCode::FAILURE != is_device_property_supported()) {
     if (nullptr != qnn_interface_->interface_.deviceCreate) {
-      auto qnn_status = qnn_interface_->interface_.deviceCreate(nullptr, nullptr, &(device_handle_));
+      auto qnn_status =
+          qnn_interface_->interface_.deviceCreate(nullptr, nullptr, &(device_handle_));
 
       if (QNN_SUCCESS != qnn_status && QNN_DEVICE_ERROR_UNSUPPORTED_FEATURE != qnn_status) {
         QRB_ERROR("Failed to create device!");
@@ -426,8 +427,8 @@ StatusCode QnnInference::create_context()
 StatusCode QnnInference::compose_graphs()
 {
   if (ModelError::MODEL_NO_ERROR !=
-      qnn_interface_->compose_graphs_(backend_handle_, qnn_interface_->interface_, context_, nullptr,
-          0, &(graphs_info_), &(graphs_count_), false, nullptr, QNN_LOG_LEVEL_MAX)) {
+      qnn_interface_->compose_graphs_(backend_handle_, qnn_interface_->interface_, context_,
+          nullptr, 0, &(graphs_info_), &(graphs_count_), false, nullptr, QNN_LOG_LEVEL_MAX)) {
     QRB_ERROR("Failed in composeGraphs()!");
     return StatusCode::FAILURE;
   }
