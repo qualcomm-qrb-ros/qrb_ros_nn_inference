@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Qualcomm Innovation Center, Inc. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
 #include "qrb_ros_post_process_with_dma/qrb_ros_post_process_with_dma_node.hpp"
 
 #include "rclcpp/rclcpp.hpp"

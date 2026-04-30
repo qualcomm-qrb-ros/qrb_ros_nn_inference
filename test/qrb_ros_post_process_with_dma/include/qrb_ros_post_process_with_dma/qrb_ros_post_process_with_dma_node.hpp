@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Qualcomm Innovation Center, Inc. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
 #ifndef QRB_ROS_POST_PROCESS_WITH_DMA__QRB_ROS_POST_PROCESS_WITH_DMA_NODE_HPP_
 #define QRB_ROS_POST_PROCESS_WITH_DMA__QRB_ROS_POST_PROCESS_WITH_DMA_NODE_HPP_
 
