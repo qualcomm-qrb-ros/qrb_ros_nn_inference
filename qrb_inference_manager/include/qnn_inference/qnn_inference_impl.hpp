@@ -14,7 +14,9 @@
 #include <numeric>
 #include <vector>
 
+#include "HTP/QnnHtpMem.h"
 #include "QnnInterface.h"
+#include "QnnMem.h"
 #include "System/QnnSystemInterface.h"
 #include "qrb_inference.hpp"
 
@@ -89,10 +91,10 @@ public:
 
   ~QnnInterface() = default;
 
-  compose_graphs_func compose_graphs;
-  free_graph_info_func free_graph_info;
-  QNN_INTERFACE_VER_TYPE interface;
-  QNN_SYSTEM_INTERFACE_VER_TYPE qnn_system_interface;
+  compose_graphs_func compose_graphs_;
+  free_graph_info_func free_graph_info_;
+  QNN_INTERFACE_VER_TYPE interface_;
+  QNN_SYSTEM_INTERFACE_VER_TYPE qnn_system_interface_;
 
 private:
   template <class T>
@@ -119,18 +121,19 @@ public:
   std::vector<OutputTensor> read_output_tensors(const uint32_t number_of_outputs);
   void free_qnn_tensors(Qnn_Tensor_t * tensors, uint32_t tensors_cnt);
   StatusCode tensor_info_deep_copy(Qnn_Tensor_t * dst, const Qnn_Tensor_t * src);
-
-  Qnn_Tensor_t * inputs = nullptr;
-  Qnn_Tensor_t * outputs = nullptr;
-  uint32_t num_of_input_tensors = 0;
-  uint32_t num_of_output_tensors = 0;
-
-private:
   std::vector<size_t> get_tensor_shape(const Qnn_Tensor_t * tensor);
   uint32_t get_tensor_size(const Qnn_Tensor_t * tensor, const std::vector<size_t> shape);
+  int32_t qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type);
+
+  Qnn_Tensor_t * inputs_ = nullptr;
+  Qnn_Tensor_t * outputs_ = nullptr;
+  uint32_t num_of_input_tensors_ = 0;
+  uint32_t num_of_output_tensors_ = 0;
+  bool use_mem_handle_ = false;
+
+private:
   StatusCode allocate_tensor_buf(void *& data, Qnn_DataType_t tensor_data_type, uint32_t buf_size);
   void check_tensor_version(const Qnn_Tensor_t * tensor);
-  int32_t qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type);
 
   inline void set_tensor_id(Qnn_Tensor_t * tensor, const uint32_t id);
   inline void set_tensor_type(Qnn_Tensor_t * tensor, const Qnn_TensorType_t type);
@@ -148,8 +151,8 @@ private:
   inline uint32_t get_tensor_rank(const Qnn_Tensor_t * tensor);
   inline const char * get_tensor_name(const Qnn_Tensor_t * tensor);
   inline Qnn_TensorType_t get_tensor_type(const Qnn_Tensor_t * tensor);
-  inline Qnn_TensorDataFormat_t get_tensor_data_format(const Qnn_Tensor_t * tensor);
   inline Qnn_DataType_t get_tensor_data_type(const Qnn_Tensor_t * tensor);
+  inline Qnn_TensorDataFormat_t get_tensor_data_format(const Qnn_Tensor_t * tensor);
   inline Qnn_QuantizeParams_t get_tensor_quant_params(const Qnn_Tensor_t * tensor);
   inline Qnn_ClientBuffer_t get_tensor_client_buf(const Qnn_Tensor_t * tensor);
 

@@ -95,14 +95,14 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
     auto io_tensors =
         QnnTensor(graphs_info.num_of_input_tensors, graphs_info.num_of_output_tensors);
 
-    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.inputs,
-                                   io_tensors.num_of_input_tensors, graphs_info.input_tensors)) {
+    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.inputs_,
+                                   io_tensors.num_of_input_tensors_, graphs_info.input_tensors)) {
       QRB_ERROR("Setup input tensors failed!");
       return StatusCode::FAILURE;
     }
 
-    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.outputs,
-                                   io_tensors.num_of_output_tensors, graphs_info.output_tensors)) {
+    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.outputs_,
+                                   io_tensors.num_of_output_tensors_, graphs_info.output_tensors)) {
       QRB_ERROR("Setup output tensors failed!");
       return StatusCode::FAILURE;
     }
@@ -112,9 +112,9 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
       return StatusCode::FAILURE;
     }
 
-    if (QNN_GRAPH_NO_ERROR != this->qnn_interface_->interface.graphExecute(graphs_info.graph,
-                                  io_tensors.inputs, io_tensors.num_of_input_tensors,
-                                  io_tensors.outputs, io_tensors.num_of_output_tensors, nullptr,
+    if (QNN_GRAPH_NO_ERROR != this->qnn_interface_->interface_.graphExecute(graphs_info.graph,
+                                  io_tensors.inputs_, io_tensors.num_of_input_tensors_,
+                                  io_tensors.outputs_, io_tensors.num_of_output_tensors_, nullptr,
                                   nullptr)) {
       QRB_ERROR("QNN graphExecute failed!");
       return StatusCode::FAILURE;
@@ -130,6 +130,238 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
   return StatusCode::SUCCESS;
 }
 
+StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
+    uint32_t dmabuf_size,
+    uint64_t dmabuf_offset)
+{
+  // Track previous inference output resources for cleanup.
+  static std::vector<Qnn_MemHandle_t> prev_output_handles;
+
+  if (dmabuf_fd < 0 || dmabuf_size == 0) {
+    QRB_ERROR("Invalid DMA-BUF input: fd=", dmabuf_fd, " size=", dmabuf_size);
+    return StatusCode::FAILURE;
+  }
+
+  // Clean up previous output handles before starting new inference
+  if (!prev_output_handles.empty()) {
+    for (auto & handle : prev_output_handles) {
+      if (handle != nullptr) {
+        qnn_interface_->interface_.memDeRegister(&handle, 1u);
+      }
+    }
+    prev_output_handles.clear();
+  }
+
+  for (uint32_t g = 0; g < graphs_count_; g++) {
+    const auto & graph_info = (*(graphs_info_))[g];
+
+    auto io_tensors = QnnTensor(graph_info.num_of_input_tensors, graph_info.num_of_output_tensors);
+    io_tensors.use_mem_handle_ = true;
+
+    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.inputs_,
+                                   io_tensors.num_of_input_tensors_, graph_info.input_tensors)) {
+      QRB_ERROR("Setup input tensors failed!");
+      return StatusCode::FAILURE;
+    }
+
+    if (StatusCode::SUCCESS != io_tensors.setup_tensors(io_tensors.outputs_,
+                                   io_tensors.num_of_output_tensors_, graph_info.output_tensors)) {
+      QRB_ERROR("Setup output tensors failed!");
+      return StatusCode::FAILURE;
+    }
+
+    if (graph_info.num_of_input_tensors == 1) {  // for single input tensor
+      Qnn_MemDescriptor_t input_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
+      input_mem_desc.memShape = { io_tensors.inputs_[0].v1.rank,
+        io_tensors.inputs_[0].v1.dimensions, nullptr };
+      input_mem_desc.dataType = io_tensors.inputs_[0].v1.dataType;
+      input_mem_desc.memType = QNN_MEM_TYPE_ION;
+      input_mem_desc.ionInfo.fd = dmabuf_fd;
+
+      io_tensors.inputs_[0].v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
+      io_tensors.inputs_[0].v1.memHandle = nullptr;
+
+      auto rc = qnn_interface_->interface_.memRegister(
+          context_, &input_mem_desc, 1u, &io_tensors.inputs_[0].v1.memHandle);
+      if (QNN_SUCCESS != rc) {
+        const char * err_msg = nullptr;
+        qnn_interface_->interface_.errorGetMessage(rc, &err_msg);
+        QRB_ERROR(
+            "memRegister(input DMA-BUF) failed: ", (err_msg ? err_msg : "unknown"), " (", rc, ")");
+        return StatusCode::FAILURE;
+      }
+    } else {  // for multiple input tensors
+      uint64_t offset = 0;
+      for (uint32_t i = 0; i < graph_info.num_of_input_tensors; i++) {
+        auto & input_tensor = io_tensors.inputs_[i];
+
+        Qnn_MemDescriptor_t input_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
+        input_mem_desc.memShape = { input_tensor.v1.rank, input_tensor.v1.dimensions, nullptr };
+        input_mem_desc.dataType = input_tensor.v1.dataType;
+        input_mem_desc.memType = QNN_MEM_TYPE_CUSTOM;
+        input_tensor.v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
+        input_tensor.v1.memHandle = nullptr;
+
+        QnnMemHtp_Descriptor_t htp_mem_desc;
+        htp_mem_desc.type = QNN_HTP_MEM_SHARED_BUFFER;
+        htp_mem_desc.size = dmabuf_size;
+
+        QnnHtpMem_SharedBufferConfig_t htp_shared_buf_config = { dmabuf_fd, offset };
+        htp_mem_desc.sharedBufferConfig = htp_shared_buf_config;
+        input_mem_desc.customInfo = &htp_mem_desc;
+
+        auto rc = qnn_interface_->interface_.memRegister(
+            context_, &input_mem_desc, 1u, &input_tensor.v1.memHandle);
+        if (QNN_SUCCESS != rc) {
+          const char * err_msg = nullptr;
+          qnn_interface_->interface_.errorGetMessage(rc, &err_msg);
+          QRB_ERROR("memRegister(input DMA-BUF) failed: ", (err_msg ? err_msg : "unknown"), " (",
+              rc, ")");
+          return StatusCode::FAILURE;
+        }
+
+        auto shape = io_tensors.get_tensor_shape(&input_tensor);
+        uint32_t input_tensor_size = io_tensors.get_tensor_size(&input_tensor, shape);
+        offset = offset + input_tensor_size;
+      }
+    }
+
+    // Register each output tensor as its own ION buffer (rpcmem-backed) to get a distinct fd.
+    std::vector<Qnn_MemHandle_t> output_mem_handles(graph_info.num_of_output_tensors, nullptr);
+    std::vector<int> output_fds(graph_info.num_of_output_tensors, -1);
+    std::vector<uint32_t> output_sizes(graph_info.num_of_output_tensors, 0);
+    std::vector<void *> output_ptrs(graph_info.num_of_output_tensors, nullptr);
+
+    constexpr int RPCMEM_HEAP_ID_SYSTEM = 25;
+    constexpr uint32_t RPCMEM_DEFAULT_FLAGS = 1;
+
+    auto deregister_all_tensors = [&] {
+      for (uint32_t i = 0; i < graph_info.num_of_output_tensors; i++) {
+        if (output_mem_handles[i] != nullptr) {
+          qnn_interface_->interface_.memDeRegister(&output_mem_handles[i], 1u);
+          output_mem_handles[i] = nullptr;
+        }
+      }
+
+      for (uint32_t i = 0; i < graph_info.num_of_input_tensors; i++) {
+        if (io_tensors.inputs_[i].v1.memHandle != nullptr) {
+          qnn_interface_->interface_.memDeRegister(&io_tensors.inputs_[i].v1.memHandle, 1u);
+        }
+        io_tensors.inputs_[i].v1.memHandle = nullptr;
+      }
+    };
+
+    for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
+      auto * out_tensor = &(io_tensors.outputs_[out_i]);
+
+      auto shape = io_tensors.get_tensor_shape(out_tensor);
+      uint32_t output_tensor_size = io_tensors.get_tensor_size(out_tensor, shape);
+
+      // IMPORTANT:
+      // output RPCMEM buffer ownership is transferred to downstream via dmabuf_ptr, where it will
+      // be freed using rpcmem_free(ptr). Therefore, must NOT keep an owning RpcMemManager here;
+      // otherwise it will free the buffer at end of scope (causing invalid output).
+      auto rpc_mgr = std::make_shared<RpcMemManager>();
+      if (StatusCode::SUCCESS != rpc_mgr->init()) {
+        QRB_ERROR("RpcMemManager init failed");
+        deregister_all_tensors();
+        return StatusCode::FAILURE;
+      }
+
+      if (StatusCode::SUCCESS !=
+          rpc_mgr->alloc(output_tensor_size, RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS)) {
+        QRB_ERROR("RpcMemManager alloc failed for size: ", output_tensor_size);
+        deregister_all_tensors();
+        return StatusCode::FAILURE;
+      }
+
+      int fd = rpc_mgr->get_fd();
+      void * ptr = rpc_mgr->get_ptr();
+
+      Qnn_MemDescriptor_t out_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
+      out_mem_desc.memShape = { out_tensor->v1.rank, out_tensor->v1.dimensions, nullptr };
+      out_mem_desc.dataType = out_tensor->v1.dataType;
+      out_mem_desc.memType = QNN_MEM_TYPE_ION;
+      out_mem_desc.ionInfo.fd = fd;
+
+      Qnn_MemHandle_t out_mem_handle = nullptr;
+      auto out_rc =
+          qnn_interface_->interface_.memRegister(context_, &out_mem_desc, 1u, &out_mem_handle);
+      if (QNN_SUCCESS != out_rc) {
+        const char * err_msg = nullptr;
+        qnn_interface_->interface_.errorGetMessage(out_rc, &err_msg);
+        QRB_ERROR(
+            "memRegister(output ION) failed: ", (err_msg ? err_msg : "unknown"), " (", out_rc, ")");
+        deregister_all_tensors();
+        return StatusCode::FAILURE;
+      }
+
+      out_tensor->v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
+      out_tensor->v1.memHandle = out_mem_handle;
+
+      output_mem_handles[out_i] = out_mem_handle;
+      output_fds[out_i] = fd;
+      output_sizes[out_i] = output_tensor_size;
+      output_ptrs[out_i] = ptr;
+
+      // Transfer ownership to downstream. Downstream will call rpcmem_free(ptr) using dmabuf_ptr.
+      // Ensure destructor does NOT free the buffer. Still keep this object alive until the
+      // next inference cycle to keep libcdsprpc handle and symbol pointers valid.
+      rpc_mgr->disown();
+      static std::vector<std::shared_ptr<RpcMemManager>> s_output_keepalive;
+      s_output_keepalive.push_back(rpc_mgr);
+    }
+
+    auto exec_rc = qnn_interface_->interface_.graphExecute(graph_info.graph, io_tensors.inputs_,
+        io_tensors.num_of_input_tensors_, io_tensors.outputs_, io_tensors.num_of_output_tensors_,
+        nullptr, nullptr);
+
+    if (QNN_GRAPH_NO_ERROR != exec_rc) {
+      QRB_ERROR("QNN graphExecute failed with code: ", exec_rc);
+      deregister_all_tensors();
+      return StatusCode::FAILURE;
+    }
+
+    // Immediately deregister input handle after graph execution completes
+    // The input memory is owned by the caller (pre-process node) and will be reused
+    deregister_all_tensors();
+
+#ifndef __hexagon__
+    output_tensor_.clear();
+    output_tensor_.reserve(graph_info.num_of_output_tensors);
+
+    for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
+      const auto * out_tensor = &(io_tensors.outputs_[out_i]);
+
+      auto shape = io_tensors.get_tensor_shape(out_tensor);
+
+      OutputTensor ot;
+      ot.output_tensor_name = out_tensor->v1.name;
+
+      ot.output_tensor_shape.reserve(shape.size());
+      for (size_t i = 0; i < shape.size(); i++) {
+        ot.output_tensor_shape.push_back(static_cast<uint32_t>(shape[i]));
+      }
+
+      ot.data_type = io_tensors.qnn_dtype_to_qrb_dtype(out_tensor->v1.dataType);
+
+      // tensor data is in DMA-BUF
+      ot.output_dmabuf_fd = output_fds[out_i];
+      ot.output_dmabuf_offset = dmabuf_offset;
+      ot.output_dmabuf_size = output_sizes[out_i];
+      // Downstream will free this RPCMEM allocation using rpcmem_free(ptr).
+      ot.output_dmabuf_ptr = reinterpret_cast<uint64_t>(output_ptrs[out_i]);
+
+      output_tensor_.emplace_back(std::move(ot));
+    }
+#endif
+
+    prev_output_handles = std::move(output_mem_handles);
+  }
+
+  return StatusCode::SUCCESS;
+}
+
 const std::vector<OutputTensor> QnnInference::get_output_tensors()
 {
   return std::move(output_tensor_);
@@ -137,7 +369,7 @@ const std::vector<OutputTensor> QnnInference::get_output_tensors()
 
 StatusCode QnnInference::initialize_backend()
 {
-  auto qnn_status = qnn_interface_->interface.backendCreate(
+  auto qnn_status = qnn_interface_->interface_.backendCreate(
       nullptr, (const QnnBackend_Config_t **)(nullptr), &(backend_handle_));
 
   if (QNN_BACKEND_NO_ERROR != qnn_status) {
@@ -152,8 +384,8 @@ StatusCode QnnInference::initialize_backend()
 StatusCode QnnInference::create_device()
 {
   auto is_device_property_supported = [this] {
-    if (nullptr != qnn_interface_->interface.propertyHasCapability) {
-      auto qnn_status = qnn_interface_->interface.propertyHasCapability(QNN_PROPERTY_GROUP_DEVICE);
+    if (nullptr != qnn_interface_->interface_.propertyHasCapability) {
+      auto qnn_status = qnn_interface_->interface_.propertyHasCapability(QNN_PROPERTY_GROUP_DEVICE);
 
       if (QNN_PROPERTY_NOT_SUPPORTED == qnn_status) {
         QRB_WARNING("Device property is not supported!");
@@ -166,8 +398,9 @@ StatusCode QnnInference::create_device()
   };
 
   if (StatusCode::FAILURE != is_device_property_supported()) {
-    if (nullptr != qnn_interface_->interface.deviceCreate) {
-      auto qnn_status = qnn_interface_->interface.deviceCreate(nullptr, nullptr, &(device_handle_));
+    if (nullptr != qnn_interface_->interface_.deviceCreate) {
+      auto qnn_status =
+          qnn_interface_->interface_.deviceCreate(nullptr, nullptr, &(device_handle_));
 
       if (QNN_SUCCESS != qnn_status && QNN_DEVICE_ERROR_UNSUPPORTED_FEATURE != qnn_status) {
         QRB_ERROR("Failed to create device!");
@@ -183,7 +416,7 @@ StatusCode QnnInference::create_device()
 
 StatusCode QnnInference::create_context()
 {
-  if (QNN_CONTEXT_NO_ERROR != qnn_interface_->interface.contextCreate(
+  if (QNN_CONTEXT_NO_ERROR != qnn_interface_->interface_.contextCreate(
                                   backend_handle_, device_handle_, nullptr, &(context_))) {
     QRB_ERROR("Could not create context!");
     return StatusCode::FAILURE;
@@ -194,8 +427,8 @@ StatusCode QnnInference::create_context()
 StatusCode QnnInference::compose_graphs()
 {
   if (ModelError::MODEL_NO_ERROR !=
-      qnn_interface_->compose_graphs(backend_handle_, qnn_interface_->interface, context_, nullptr,
-          0, &(graphs_info_), &(graphs_count_), false, nullptr, QNN_LOG_LEVEL_MAX)) {
+      qnn_interface_->compose_graphs_(backend_handle_, qnn_interface_->interface_, context_,
+          nullptr, 0, &(graphs_info_), &(graphs_count_), false, nullptr, QNN_LOG_LEVEL_MAX)) {
     QRB_ERROR("Failed in composeGraphs()!");
     return StatusCode::FAILURE;
   }
@@ -206,7 +439,7 @@ StatusCode QnnInference::finalize_graphs()
 {
   for (size_t i = 0; i < graphs_count_; i++) {
     if (QNN_GRAPH_NO_ERROR !=
-        qnn_interface_->interface.graphFinalize((*graphs_info_)[i].graph, nullptr, nullptr)) {
+        qnn_interface_->interface_.graphFinalize((*graphs_info_)[i].graph, nullptr, nullptr)) {
       return StatusCode::FAILURE;
     }
   }
@@ -220,25 +453,29 @@ void QnnInference::free_graphs_info()
     return;
   }
 
+  auto check_and_free = [](auto & ptr) {
+    if (ptr != nullptr) {
+      free((void *)ptr);
+      ptr = nullptr;
+    }
+  };
+
   for (uint32_t i = 0; i < graphs_count_; i++) {
     auto & graph_info = graphs_info_[i];
-    free(graph_info->graph_name);
-    graph_info->graph_name = nullptr;
+    check_and_free(graph_info->graph_name);
 
     QnnTensor tensor_ops;
     tensor_ops.free_qnn_tensors(graph_info->input_tensors, graph_info->num_of_input_tensors);
     tensor_ops.free_qnn_tensors(graph_info->output_tensors, graph_info->num_of_output_tensors);
   }
 
-  free(*graphs_info_);
-  *graphs_info_ = nullptr;
-  free(graphs_info_);
-  graphs_info_ = nullptr;
+  check_and_free(*graphs_info_);
+  check_and_free(graphs_info_);
 }
 
 void QnnInference::free_context()
 {
-  if (QNN_CONTEXT_NO_ERROR != qnn_interface_->interface.contextFree(context_, nullptr)) {
+  if (QNN_CONTEXT_NO_ERROR != qnn_interface_->interface_.contextFree(context_, nullptr)) {
     QRB_ERROR("Failed to free context!");
   }
 
@@ -248,8 +485,8 @@ void QnnInference::free_context()
 void QnnInference::free_device()
 {
   if (true == support_device_) {
-    if (nullptr != qnn_interface_->interface.deviceFree) {
-      auto qnn_status = qnn_interface_->interface.deviceFree(device_handle_);
+    if (nullptr != qnn_interface_->interface_.deviceFree) {
+      auto qnn_status = qnn_interface_->interface_.deviceFree(device_handle_);
       if (QNN_SUCCESS != qnn_status && QNN_DEVICE_ERROR_UNSUPPORTED_FEATURE != qnn_status) {
         QRB_ERROR("Failed to free device!");
       }
@@ -261,8 +498,8 @@ void QnnInference::free_device()
 
 void QnnInference::free_backend()
 {
-  if (qnn_interface_->interface.backendFree != nullptr) {
-    if (QNN_BACKEND_NO_ERROR != qnn_interface_->interface.backendFree(backend_handle_)) {
+  if (qnn_interface_->interface_.backendFree != nullptr) {
+    if (QNN_BACKEND_NO_ERROR != qnn_interface_->interface_.backendFree(backend_handle_)) {
       QRB_ERROR("Could not free backend!");
     }
   }
@@ -321,7 +558,7 @@ StatusCode QnnInference::get_and_set_graph_info_from_binary(
 {
   QnnSystemContext_Handle_t sys_context_headle = nullptr;
   if (QNN_SUCCESS !=
-      qnn_interface_->qnn_system_interface.systemContextCreate(&sys_context_headle)) {
+      qnn_interface_->qnn_system_interface_.systemContextCreate(&sys_context_headle)) {
     QRB_ERROR("Could not create system handle.");
     return StatusCode::FAILURE;
   }
@@ -329,7 +566,7 @@ StatusCode QnnInference::get_and_set_graph_info_from_binary(
   const QnnSystemContext_BinaryInfo_t * binary_info = nullptr;
   Qnn_ContextBinarySize_t binary_info_size = 0;
   if (QNN_SUCCESS !=
-      qnn_interface_->qnn_system_interface.systemContextGetBinaryInfo(sys_context_headle,
+      qnn_interface_->qnn_system_interface_.systemContextGetBinaryInfo(sys_context_headle,
           static_cast<void *>(model_buf.get()), model_buf_size, &binary_info, &binary_info_size)) {
     QRB_ERROR("Failed to get context binary info.");
     return StatusCode::FAILURE;
@@ -339,7 +576,7 @@ StatusCode QnnInference::get_and_set_graph_info_from_binary(
     return StatusCode::FAILURE;
   }
 
-  qnn_interface_->qnn_system_interface.systemContextFree(sys_context_headle);
+  qnn_interface_->qnn_system_interface_.systemContextFree(sys_context_headle);
   sys_context_headle = nullptr;
 
   return StatusCode::SUCCESS;
@@ -453,14 +690,14 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
 StatusCode QnnInference::create_context_from_binary(const std::shared_ptr<uint8_t[]> model_buf,
     const uint64_t model_buf_size)
 {
-  if (qnn_interface_->interface.contextCreateFromBinary(backend_handle_, device_handle_, nullptr,
+  if (qnn_interface_->interface_.contextCreateFromBinary(backend_handle_, device_handle_, nullptr,
           static_cast<void *>(model_buf.get()), model_buf_size, &context_, nullptr)) {
     QRB_ERROR("Could not create context from binary!");
     return StatusCode::FAILURE;
   }
 
   for (uint32_t i = 0; i < graphs_count_; i++) {
-    if (QNN_SUCCESS != qnn_interface_->interface.graphRetrieve(
+    if (QNN_SUCCESS != qnn_interface_->interface_.graphRetrieve(
                            context_, (*graphs_info_)[i].graph_name, &((*graphs_info_)[i].graph))) {
       QRB_ERROR("Unable to retrieve graph handle for the graph");
       return StatusCode::FAILURE;

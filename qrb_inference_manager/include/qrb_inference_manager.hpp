@@ -15,6 +15,7 @@ public:
   QrbInferenceManager(const std::string & model_path, const std::string & backend_option = "");
   ~QrbInferenceManager() = default;
   bool inference_execute(const std::vector<uint8_t> & input_tensor_data);
+  bool inference_execute_dmabuf(int dmabuf_fd, uint32_t dmabuf_size, uint64_t dmabuf_offset = 0);
   std::vector<OutputTensor> get_output_tensors();
 
 private:

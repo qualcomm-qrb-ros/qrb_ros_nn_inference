@@ -50,6 +50,23 @@ bool QrbInferenceManager::inference_execute(const std::vector<uint8_t> & input_t
   return false;
 }
 
+bool QrbInferenceManager::inference_execute_dmabuf(int dmabuf_fd,
+    uint32_t dmabuf_size,
+    uint64_t dmabuf_offset)
+{
+  auto * qnn_inference = dynamic_cast<QnnInference *>(qrb_inference_.get());
+  if (nullptr == qnn_inference) {
+    QRB_ERROR("DMA-BUF inference is only supported by QnnInference (HTP backend).");
+    return false;
+  }
+
+  if (qnn_inference->inference_execute_dmabuf(dmabuf_fd, dmabuf_size, dmabuf_offset) ==
+      StatusCode::SUCCESS) {
+    return true;
+  }
+  return false;
+}
+
 std::vector<OutputTensor> QrbInferenceManager::get_output_tensors()
 {
   return this->qrb_inference_->get_output_tensors();

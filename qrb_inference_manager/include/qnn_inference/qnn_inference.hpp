@@ -4,11 +4,115 @@
 #ifndef QRB_INFERENCE_MANAGER_QNN_INFERENCE_HPP_
 #define QRB_INFERENCE_MANAGER_QNN_INFERENCE_HPP_
 
+#include <memory>
+
 #include "qnn_inference/qnn_inference_impl.hpp"
 #include "qrb_inference.hpp"
 
 namespace qrb::inference_mgr
 {
+
+class RpcMemManager
+{
+public:
+  RpcMemManager() = default;
+
+  // If true, destructor will NOT free(ptr). This is used when ownership is transferred
+  // to downstream (e.g. post-process node) which will call rpcmem_free(ptr) itself.
+  void disown() { owned_ = false; }
+
+  ~RpcMemManager()
+  {
+    if (owned_ && ptr_ != nullptr && rpcmem_free_ != nullptr) {
+      rpcmem_free_(ptr_);
+      ptr_ = nullptr;
+    }
+    if (libCdspHandle_ != nullptr) {
+      ::dlclose(libCdspHandle_);
+      libCdspHandle_ = nullptr;
+    }
+  }
+
+  // Delete copy constructor and assignment
+  RpcMemManager(const RpcMemManager &) = delete;
+  RpcMemManager & operator=(const RpcMemManager &) = delete;
+
+  StatusCode init()
+  {
+    libCdspHandle_ = ::dlopen("libcdsprpc.so", RTLD_NOW | RTLD_LOCAL);
+    if (nullptr == libCdspHandle_) {
+      QRB_ERROR("dlopen(libcdsprpc.so) failed");
+      return StatusCode::FAILURE;
+    }
+
+    rpcmem_alloc_ = (RpcMemAllocFn_t)::dlsym(libCdspHandle_, "rpcmem_alloc");
+    rpcmem_to_fd_ = (RpcMemToFdFn_t)::dlsym(libCdspHandle_, "rpcmem_to_fd");
+    rpcmem_free_ = (RpcMemFreeFn_t)::dlsym(libCdspHandle_, "rpcmem_free");
+
+    if (nullptr == rpcmem_alloc_ || nullptr == rpcmem_to_fd_ || nullptr == rpcmem_free_) {
+      QRB_ERROR("Failed to resolve rpcmem symbols");
+      ::dlclose(libCdspHandle_);
+      libCdspHandle_ = nullptr;
+      return StatusCode::FAILURE;
+    }
+
+    return StatusCode::SUCCESS;
+  }
+
+  StatusCode alloc(size_t size, int heap_id = 25, uint32_t flags = 1)
+  {
+    if (rpcmem_alloc_ == nullptr) {
+      QRB_ERROR("RpcMemManager not initialized");
+      return StatusCode::FAILURE;
+    }
+
+    ptr_ = rpcmem_alloc_(heap_id, flags, static_cast<int>(size));
+    if (nullptr == ptr_) {
+      QRB_ERROR("rpcmem_alloc failed for size: ", size);
+      return StatusCode::FAILURE;
+    }
+
+    fd_ = rpcmem_to_fd_(ptr_);
+    if (fd_ < 0) {
+      QRB_ERROR("rpcmem_to_fd failed");
+      rpcmem_free_(ptr_);
+      ptr_ = nullptr;
+      return StatusCode::FAILURE;
+    }
+
+    size_ = size;
+    return StatusCode::SUCCESS;
+  }
+
+  StatusCode free_mem_ptr(void * ptr)
+  {
+    if (ptr != nullptr && rpcmem_free_ != nullptr) {
+      rpcmem_free_(ptr);
+      ptr = nullptr;
+    } else
+      return StatusCode::FAILURE;
+    return StatusCode::SUCCESS;
+  }
+
+  void * get_ptr() const { return ptr_; }
+  int get_fd() const { return fd_; }
+  size_t get_size() const { return size_; }
+
+private:
+  using RpcMemAllocFn_t = void * (*)(int, uint32_t, int);
+  using RpcMemToFdFn_t = int (*)(void *);
+  using RpcMemFreeFn_t = void (*)(void *);
+
+  void * libCdspHandle_ = nullptr;
+  RpcMemAllocFn_t rpcmem_alloc_ = nullptr;
+  RpcMemToFdFn_t rpcmem_to_fd_ = nullptr;
+  RpcMemFreeFn_t rpcmem_free_ = nullptr;
+
+  bool owned_ = true;
+  void * ptr_ = nullptr;
+  int fd_ = -1;
+  size_t size_ = 0;
+};
 
 class QnnInference : public QrbInference
 {
@@ -18,6 +122,7 @@ public:
   StatusCode inference_init() override;
   StatusCode inference_graph_init() override;
   StatusCode inference_execute(const std::vector<uint8_t> & input_tensor_data) override;
+  StatusCode inference_execute_dmabuf(int dmabuf_fd, uint32_t dmabuf_size, uint64_t dmabuf_offset);
   const std::vector<OutputTensor> get_output_tensors() override;
 
 private:
