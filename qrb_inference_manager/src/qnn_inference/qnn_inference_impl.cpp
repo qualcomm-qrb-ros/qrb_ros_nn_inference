@@ -513,9 +513,21 @@ StatusCode QnnTensor::allocate_tensor_buf(void *& data,
     case QNN_DATATYPE_FLOAT_64:
       data = (double *)malloc(buf_size);
       break;
-    case QNN_DATATYPE_UFIXED_POINT_8:
-      data = (uint8_t *)malloc(buf_size);
+    case QNN_DATATYPE_FLOAT_16:
+    case QNN_DATATYPE_UINT_16:
+    case QNN_DATATYPE_INT_16:
+    case QNN_DATATYPE_UFIXED_POINT_16:
+      data = (uint16_t *)malloc(buf_size);
       break;
+    case QNN_DATATYPE_UINT_32:
+    case QNN_DATATYPE_INT_32:
+      data = (uint32_t *)malloc(buf_size);
+      break;
+    case QNN_DATATYPE_UINT_64:
+    case QNN_DATATYPE_INT_64:
+      data = (uint64_t *)malloc(buf_size);
+      break;
+    case QNN_DATATYPE_UFIXED_POINT_8:
     case QNN_DATATYPE_UINT_8:
       data = (uint8_t *)malloc(buf_size);
       break;
