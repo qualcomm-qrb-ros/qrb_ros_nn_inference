@@ -270,13 +270,18 @@ int32_t QnnTensor::qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type)
     case QNN_DATATYPE_FLOAT_64:
       return 3;
     case QNN_DATATYPE_UINT_16:
+    case QNN_DATATYPE_INT_16:
+    case QNN_DATATYPE_UFIXED_POINT_16:
       return 4;
     case QNN_DATATYPE_FLOAT_16:
       return 5;
     case QNN_DATATYPE_UINT_32:
       return 6;
     case QNN_DATATYPE_UINT_64:
+    case QNN_DATATYPE_INT_64:
       return 7;
+    case QNN_DATATYPE_INT_32:
+      return 8;
     default:
       return -1;
   }
@@ -480,6 +485,7 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vect
     case QNN_DATATYPE_UINT_16:
     case QNN_DATATYPE_UFIXED_POINT_16:
     case QNN_DATATYPE_INT_16:
+    case QNN_DATATYPE_FLOAT_16:
       return sizeof(uint16_t) * element_cnt;
     case QNN_DATATYPE_UINT_32:
     case QNN_DATATYPE_INT_32:
@@ -508,9 +514,21 @@ StatusCode QnnTensor::allocate_tensor_buf(void *& data,
     case QNN_DATATYPE_FLOAT_64:
       data = (double *)malloc(buf_size);
       break;
-    case QNN_DATATYPE_UFIXED_POINT_8:
-      data = (uint8_t *)malloc(buf_size);
+    case QNN_DATATYPE_FLOAT_16:
+    case QNN_DATATYPE_UINT_16:
+    case QNN_DATATYPE_INT_16:
+    case QNN_DATATYPE_UFIXED_POINT_16:
+      data = (uint16_t *)malloc(buf_size);
       break;
+    case QNN_DATATYPE_UINT_32:
+    case QNN_DATATYPE_INT_32:
+      data = (uint32_t *)malloc(buf_size);
+      break;
+    case QNN_DATATYPE_UINT_64:
+    case QNN_DATATYPE_INT_64:
+      data = (uint64_t *)malloc(buf_size);
+      break;
+    case QNN_DATATYPE_UFIXED_POINT_8:
     case QNN_DATATYPE_UINT_8:
       data = (uint8_t *)malloc(buf_size);
       break;
