@@ -276,11 +276,12 @@ int32_t QnnTensor::qnn_dtype_to_qrb_dtype(const Qnn_DataType_t & data_type)
     case QNN_DATATYPE_FLOAT_16:
       return 5;
     case QNN_DATATYPE_UINT_32:
-    case QNN_DATATYPE_INT_32:
       return 6;
     case QNN_DATATYPE_UINT_64:
     case QNN_DATATYPE_INT_64:
       return 7;
+    case QNN_DATATYPE_INT_32:
+      return 8;
     default:
       return -1;
   }
