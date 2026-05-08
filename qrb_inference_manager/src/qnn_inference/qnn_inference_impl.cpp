@@ -480,6 +480,7 @@ uint32_t QnnTensor::get_tensor_size(const Qnn_Tensor_t * tensor, const std::vect
     case QNN_DATATYPE_UINT_16:
     case QNN_DATATYPE_UFIXED_POINT_16:
     case QNN_DATATYPE_INT_16:
+    case QNN_DATATYPE_FLOAT_16:
       return sizeof(uint16_t) * element_cnt;
     case QNN_DATATYPE_UINT_32:
     case QNN_DATATYPE_INT_32:
