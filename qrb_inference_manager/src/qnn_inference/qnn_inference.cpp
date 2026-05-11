@@ -361,12 +361,13 @@ StatusCode QnnInference::copy_graph_info(T graph_info_from_binary)
     }
 
     graph_info_dst->graph_name =
-        (char *)malloc(sizeof(char) * strlen(graph_info_from_binary.graphName));
+        (char *)malloc(sizeof(char) * (strlen(graph_info_from_binary.graphName) + 1));
     if (nullptr == graph_info_dst->graph_name) {
       return StatusCode::FAILURE;
     }
     memcpy(graph_info_dst->graph_name, graph_info_from_binary.graphName,
         strlen(graph_info_from_binary.graphName));
+    graph_info_dst->graph_name[strlen(graph_info_from_binary.graphName)] = '\0';
 
     auto set_up_tensors_info = [](const Qnn_Tensor_t * src, const uint32_t cnt,
                                    Qnn_Tensor_t *& dst) {
