@@ -139,6 +139,9 @@ private:
   GraphInfo ** graphs_info_ = nullptr;
   uint32_t graphs_count_ = 0;
   bool support_device_ = false;
+  QnnHtpDevice_PerfInfrastructure_t perf_infra_{};
+  uint32_t power_config_id_ = 0;
+  bool perf_initialized_ = false;
   std::vector<OutputTensor> output_tensor_;
   std::unique_ptr<QnnInterface> qnn_interface_{ nullptr };
 
@@ -151,6 +154,7 @@ private:
   void free_context();
   void free_device();
   void free_backend();
+  StatusCode init_performance();
 
 private:
   StatusCode init_graph_from_binary();

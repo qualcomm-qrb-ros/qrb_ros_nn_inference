@@ -14,6 +14,7 @@
 #include <numeric>
 #include <vector>
 
+#include "HTP/QnnHtpDevice.h"
 #include "HTP/QnnHtpMem.h"
 #include "QnnInterface.h"
 #include "QnnMem.h"

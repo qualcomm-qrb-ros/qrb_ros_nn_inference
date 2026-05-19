@@ -65,6 +65,19 @@ StatusCode QnnInference::inference_graph_init()
     if (init_graph_from_binary() != StatusCode::SUCCESS) {
       return StatusCode::FAILURE;
     }
+
+    const char * no_perf_env = std::getenv("QNN_HTP_NO_PERF");
+    bool skip_perf = (no_perf_env != nullptr && std::string(no_perf_env) == "1");
+    bool is_htp = (backend_option_.find("Htp") != std::string::npos);
+
+    if (is_htp && !skip_perf) {
+      if (init_performance() != StatusCode::SUCCESS) {
+        QRB_ERROR("HTP performance enable failed!");
+        return StatusCode::FAILURE;
+      }
+    } else if (skip_perf) {
+      QRB_INFO("QNN_HTP_NO_PERF=1 is set, skipping HTP performance initialization");
+    }
   } else {
     if (create_context() != StatusCode::SUCCESS) {
       return StatusCode::FAILURE;
@@ -484,6 +497,11 @@ void QnnInference::free_context()
 
 void QnnInference::free_device()
 {
+  if (perf_initialized_ && perf_infra_.destroyPowerConfigId != nullptr) {
+    perf_infra_.destroyPowerConfigId(power_config_id_);
+    perf_initialized_ = false;
+  }
+
   if (true == support_device_) {
     if (nullptr != qnn_interface_->interface_.deviceFree) {
       auto qnn_status = qnn_interface_->interface_.deviceFree(device_handle_);
@@ -505,6 +523,34 @@ void QnnInference::free_backend()
   }
 
   backend_handle_ = nullptr;
+}
+
+StatusCode QnnInference::init_performance()
+{
+  if (nullptr == qnn_interface_->interface_.deviceGetInfrastructure) {
+    QRB_WARNING("deviceGetInfrastructure is not available, skipping performance init");
+    return StatusCode::SUCCESS;
+  }
+
+  QnnDevice_Infrastructure_t device_infra = nullptr;
+  if (QNN_SUCCESS != qnn_interface_->interface_.deviceGetInfrastructure(&device_infra)) {
+    QRB_ERROR("Failure in deviceGetInfrastructure()");
+    return StatusCode::FAILURE;
+  }
+
+  auto * htp_infra = static_cast<QnnHtpDevice_Infrastructure_t *>(device_infra);
+  perf_infra_ = htp_infra->perfInfra;
+
+  uint32_t device_id = 0;
+  uint32_t core_id = 0;
+  if (QNN_SUCCESS != perf_infra_.createPowerConfigId(device_id, core_id, &power_config_id_)) {
+    QRB_ERROR("Failure in createPowerConfigId()");
+    return StatusCode::FAILURE;
+  }
+
+  perf_initialized_ = true;
+  QRB_INFO("HTP performance mode open!");
+  return StatusCode::SUCCESS;
 }
 
 StatusCode QnnInference::init_graph_from_binary()

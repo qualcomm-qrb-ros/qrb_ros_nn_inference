@@ -1,5 +1,10 @@
 # Changelog for package qrb_ros_nn_inference
 
+## 2.2.0 (2026-05-18)
+- add HTP performance infrastructure initialization for binary model inference
+- support QNN_HTP_NO_PERF env var to opt out of performance init
+- Contributors👉 Na Song
+
 ## 2.1.2 (2026-02-04)
 - optimize the code style
 - Contributors👉 Na Song
