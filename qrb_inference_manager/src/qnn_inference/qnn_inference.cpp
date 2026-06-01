@@ -507,7 +507,66 @@ StatusCode QnnInference::init_performance()
   }
 
   perf_initialized_ = true;
-  QRB_INFO("HTP performance mode open!");
+
+  // Determine HTP performance mode from environment variables.
+  // Priority order: BURST > SUSTAINED_HIGH > BALANCED > POWER_SAVER > default
+  auto get_perf_mode =
+      []() -> std::pair<QnnHtpPerfInfrastructure_PowerMode_t, const char *> {
+    auto env_is_set = [](const char * name) -> bool {
+      const char * v = std::getenv(name);
+      return (v != nullptr && std::string(v) == "1");
+    };
+
+    if (env_is_set("QNN_HTP_BURST")) {
+      return { QNN_HTP_PERF_INFRASTRUCTURE_POWERMODE_PERFORMANCE_MODE, "burst" };
+    }
+    if (env_is_set("QNN_HTP_SUSTAINED_HIGH")) {
+      return { QNN_HTP_PERF_INFRASTRUCTURE_POWERMODE_ADJUST_ONLY_UP, "sustained_high" };
+    }
+    if (env_is_set("QNN_HTP_BALANCED")) {
+      return { QNN_HTP_PERF_INFRASTRUCTURE_POWERMODE_ADJUST_UP_DOWN, "balanced" };
+    }
+    if (env_is_set("QNN_HTP_POWER_SAVER")) {
+      return { QNN_HTP_PERF_INFRASTRUCTURE_POWERMODE_POWER_SAVER_MODE, "power_saver" };
+    }
+    return { QNN_HTP_PERF_INFRASTRUCTURE_POWERMODE_UNKNOWN, nullptr };
+  };
+
+  auto [power_mode, mode_name] = get_perf_mode();
+
+  if (mode_name != nullptr) {
+    QnnHtpPerfInfrastructure_PowerConfig_t power_config =
+        QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIG_INIT;
+    power_config.option = QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIGOPTION_DCVS_V3;
+    power_config.dcvsV3Config.contextId = power_config_id_;
+    power_config.dcvsV3Config.setDcvsEnable = 1;
+    power_config.dcvsV3Config.dcvsEnable = 0;  // disable DCVS to lock performance level
+    power_config.dcvsV3Config.powerMode = power_mode;
+    power_config.dcvsV3Config.setSleepLatency = 1;
+    power_config.dcvsV3Config.sleepLatency = 40;  // low latency
+    power_config.dcvsV3Config.setSleepDisable = 1;
+    power_config.dcvsV3Config.sleepDisable = 1;  // disable sleep for consistent performance
+    power_config.dcvsV3Config.setBusParams = 1;
+    power_config.dcvsV3Config.busVoltageCornerMin = DCVS_VOLTAGE_VCORNER_TURBO;
+    power_config.dcvsV3Config.busVoltageCornerTarget = DCVS_VOLTAGE_VCORNER_TURBO;
+    power_config.dcvsV3Config.busVoltageCornerMax = DCVS_VOLTAGE_VCORNER_TURBO_PLUS;
+    power_config.dcvsV3Config.setCoreParams = 1;
+    power_config.dcvsV3Config.coreVoltageCornerMin = DCVS_VOLTAGE_VCORNER_TURBO;
+    power_config.dcvsV3Config.coreVoltageCornerTarget = DCVS_VOLTAGE_VCORNER_TURBO;
+    power_config.dcvsV3Config.coreVoltageCornerMax = DCVS_VOLTAGE_VCORNER_TURBO_PLUS;
+
+    const QnnHtpPerfInfrastructure_PowerConfig_t * power_configs[] = { &power_config, nullptr };
+
+    if (QNN_SUCCESS != perf_infra_.setPowerConfig(power_config_id_, power_configs)) {
+      QRB_WARNING("setPowerConfig failed for mode: ", mode_name,
+          ", continuing with default performance mode");
+    } else {
+      QRB_INFO("HTP performance mode set to: ", mode_name);
+    }
+  } else {
+    QRB_INFO("HTP performance mode: default (no override set)");
+  }
+
   return StatusCode::SUCCESS;
 }
 
