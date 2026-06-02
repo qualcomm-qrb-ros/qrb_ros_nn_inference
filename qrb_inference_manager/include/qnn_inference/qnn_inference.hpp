@@ -155,6 +155,7 @@ private:
   void free_device();
   void free_backend();
   StatusCode init_performance();
+  void log_error_details(Qnn_ErrorHandle_t error_handle);
 
 private:
   StatusCode init_graph_from_binary();
