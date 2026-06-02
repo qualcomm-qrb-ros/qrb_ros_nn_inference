@@ -716,27 +716,44 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
     return StatusCode::FAILURE;
   }
 
+  // Log context binary metadata for diagnostics
   switch (binary_info->version) {
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_1: {
-      graphs_count_ = binary_info->contextBinaryInfoV1.numGraphs;
-      if (StatusCode::SUCCESS !=
-          copy_graph_info(binary_info->contextBinaryInfoV1.graphs->graphInfoV1)) {
+      const auto & info = binary_info->contextBinaryInfoV1;
+      QRB_INFO("Context binary info (V1): SDK build=",
+          (info.buildId ? info.buildId : "unknown"),
+          ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
+      graphs_count_ = info.numGraphs;
+      if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV1)) {
         return StatusCode::FAILURE;
       }
       break;
     }
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_2: {
-      graphs_count_ = binary_info->contextBinaryInfoV2.numGraphs;
-      if (StatusCode::SUCCESS !=
-          copy_graph_info(binary_info->contextBinaryInfoV2.graphs->graphInfoV2)) {
+      const auto & info = binary_info->contextBinaryInfoV2;
+      QRB_INFO("Context binary info (V2): SDK build=",
+          (info.buildId ? info.buildId : "unknown"),
+          ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
+      graphs_count_ = info.numGraphs;
+      if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV2)) {
         return StatusCode::FAILURE;
       }
       break;
     }
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_3: {
-      graphs_count_ = binary_info->contextBinaryInfoV3.numGraphs;
-      if (StatusCode::SUCCESS !=
-          copy_graph_info(binary_info->contextBinaryInfoV3.graphs->graphInfoV3)) {
+      const auto & info = binary_info->contextBinaryInfoV3;
+      QRB_INFO("Context binary info (V3/FCB): SDK build=",
+          (info.buildId ? info.buildId : "unknown"),
+          ", target SoC=", (info.socVersion ? info.socVersion : "unknown"),
+          ", SoC model ID=", info.socModel);
+      if (info.socModel == 0 && info.socVersion == nullptr) {
+        QRB_INFO("Model appears to be a Flexible Context Binary (FCB) — "
+                 "compatible with multiple SoC targets");
+      } else {
+        QRB_INFO("Model is a standard context binary targeting a specific SoC");
+      }
+      graphs_count_ = info.numGraphs;
+      if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV3)) {
         return StatusCode::FAILURE;
       }
       break;
