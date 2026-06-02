@@ -125,11 +125,12 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
       return StatusCode::FAILURE;
     }
 
-    if (QNN_GRAPH_NO_ERROR != this->qnn_interface_->interface_.graphExecute(graphs_info.graph,
-                                  io_tensors.inputs_, io_tensors.num_of_input_tensors_,
-                                  io_tensors.outputs_, io_tensors.num_of_output_tensors_, nullptr,
-                                  nullptr)) {
+    auto graph_exec_rc = this->qnn_interface_->interface_.graphExecute(graphs_info.graph,
+        io_tensors.inputs_, io_tensors.num_of_input_tensors_, io_tensors.outputs_,
+        io_tensors.num_of_output_tensors_, nullptr, nullptr);
+    if (QNN_GRAPH_NO_ERROR != graph_exec_rc) {
       QRB_ERROR("QNN graphExecute failed!");
+      log_error_details(graph_exec_rc);
       return StatusCode::FAILURE;
     }
 
@@ -340,12 +341,25 @@ const std::vector<OutputTensor> QnnInference::get_output_tensors()
 
 StatusCode QnnInference::initialize_backend()
 {
+  // Enable detailed error reporting for better diagnostics
+  QnnBackend_Config_t error_config = QNN_BACKEND_CONFIG_INIT;
+  error_config.option = QNN_BACKEND_CONFIG_OPTION_ERROR_REPORTING;
+  error_config.errorConfig.reportingLevel = QNN_ERROR_REPORTING_LEVEL_DETAILED;
+  error_config.errorConfig.storageLimit = 1024;  // 1 MB for error info
+
+  const QnnBackend_Config_t * backend_configs[] = { &error_config, nullptr };
+
   auto qnn_status = qnn_interface_->interface_.backendCreate(
-      nullptr, (const QnnBackend_Config_t **)(nullptr), &(backend_handle_));
+      nullptr, (const QnnBackend_Config_t **)backend_configs, &(backend_handle_));
 
   if (QNN_BACKEND_NO_ERROR != qnn_status) {
-    QRB_ERROR("Could not initialize backend due to error = %d!", qnn_status);
-    return StatusCode::FAILURE;
+    // Retry without error reporting config in case backend doesn't support it
+    qnn_status = qnn_interface_->interface_.backendCreate(
+        nullptr, (const QnnBackend_Config_t **)(nullptr), &(backend_handle_));
+    if (QNN_BACKEND_NO_ERROR != qnn_status) {
+      QRB_ERROR("Could not initialize backend due to error = ", qnn_status);
+      return StatusCode::FAILURE;
+    }
   }
 
   QRB_INFO(backend_option_, " initialize successfully");
@@ -510,8 +524,7 @@ StatusCode QnnInference::init_performance()
 
   // Determine HTP performance mode from environment variables.
   // Priority order: BURST > SUSTAINED_HIGH > BALANCED > POWER_SAVER > default
-  auto get_perf_mode =
-      []() -> std::pair<QnnHtpPerfInfrastructure_PowerMode_t, const char *> {
+  auto get_perf_mode = []() -> std::pair<QnnHtpPerfInfrastructure_PowerMode_t, const char *> {
     auto env_is_set = [](const char * name) -> bool {
       const char * v = std::getenv(name);
       return (v != nullptr && std::string(v) == "1");
@@ -720,8 +733,7 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
   switch (binary_info->version) {
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_1: {
       const auto & info = binary_info->contextBinaryInfoV1;
-      QRB_INFO("Context binary info (V1): SDK build=",
-          (info.buildId ? info.buildId : "unknown"),
+      QRB_INFO("Context binary info (V1): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
       graphs_count_ = info.numGraphs;
       if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV1)) {
@@ -731,8 +743,7 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
     }
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_2: {
       const auto & info = binary_info->contextBinaryInfoV2;
-      QRB_INFO("Context binary info (V2): SDK build=",
-          (info.buildId ? info.buildId : "unknown"),
+      QRB_INFO("Context binary info (V2): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
       graphs_count_ = info.numGraphs;
       if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV2)) {
@@ -742,13 +753,14 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
     }
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_3: {
       const auto & info = binary_info->contextBinaryInfoV3;
-      QRB_INFO("Context binary info (V3/FCB): SDK build=",
-          (info.buildId ? info.buildId : "unknown"),
+      QRB_INFO(
+          "Context binary info (V3/FCB): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"),
           ", SoC model ID=", info.socModel);
       if (info.socModel == 0 && info.socVersion == nullptr) {
-        QRB_INFO("Model appears to be a Flexible Context Binary (FCB) — "
-                 "compatible with multiple SoC targets");
+        QRB_INFO(
+            "Model appears to be a Flexible Context Binary (FCB) — "
+            "compatible with multiple SoC targets");
       } else {
         QRB_INFO("Model is a standard context binary targeting a specific SoC");
       }
@@ -770,9 +782,12 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
 StatusCode QnnInference::create_context_from_binary(const std::shared_ptr<uint8_t[]> model_buf,
     const uint64_t model_buf_size)
 {
-  if (qnn_interface_->interface_.contextCreateFromBinary(backend_handle_, device_handle_, nullptr,
-          static_cast<void *>(model_buf.get()), model_buf_size, &context_, nullptr)) {
+  auto create_rc =
+      qnn_interface_->interface_.contextCreateFromBinary(backend_handle_, device_handle_, nullptr,
+          static_cast<void *>(model_buf.get()), model_buf_size, &context_, nullptr);
+  if (QNN_SUCCESS != create_rc) {
     QRB_ERROR("Could not create context from binary!");
+    log_error_details(create_rc);
     return StatusCode::FAILURE;
   }
 
@@ -784,6 +799,38 @@ StatusCode QnnInference::create_context_from_binary(const std::shared_ptr<uint8_
     }
   }
   return StatusCode::SUCCESS;
+}
+
+void QnnInference::log_error_details(Qnn_ErrorHandle_t error_handle)
+{
+  if (error_handle == QNN_SUCCESS) {
+    return;
+  }
+
+  // Try verbose message first
+  if (qnn_interface_->interface_.errorGetVerboseMessage != nullptr) {
+    const char * verbose_msg = nullptr;
+    if (QNN_SUCCESS ==
+        qnn_interface_->interface_.errorGetVerboseMessage(error_handle, &verbose_msg)) {
+      if (verbose_msg != nullptr) {
+        QRB_ERROR("Detailed error info: ", verbose_msg);
+        if (qnn_interface_->interface_.errorFreeVerboseMessage != nullptr) {
+          qnn_interface_->interface_.errorFreeVerboseMessage(verbose_msg);
+        }
+        return;
+      }
+    }
+  }
+
+  // Fall back to basic error message
+  if (qnn_interface_->interface_.errorGetMessage != nullptr) {
+    const char * err_msg = nullptr;
+    if (QNN_SUCCESS == qnn_interface_->interface_.errorGetMessage(error_handle, &err_msg)) {
+      if (err_msg != nullptr) {
+        QRB_ERROR("Error info: ", err_msg);
+      }
+    }
+  }
 }
 
 }  // namespace qrb::inference_mgr
