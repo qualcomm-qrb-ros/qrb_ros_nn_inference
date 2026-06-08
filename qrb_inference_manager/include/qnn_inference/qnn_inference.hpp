@@ -166,6 +166,16 @@ private:
   StatusCode set_up_graph_info(const QnnSystemContext_BinaryInfo_t * binary_info);
   StatusCode create_context_from_binary(const std::shared_ptr<uint8_t[]> model_buf,
       const uint64_t model_buf_size);
+
+  // DMA buffer pool: cached handles for zero-overhead frame-to-frame reuse
+  int cached_input_fd_{ -1 };
+  Qnn_MemHandle_t cached_input_handle_{ nullptr };
+  std::vector<std::shared_ptr<RpcMemManager>> cached_output_buffers_;
+  std::vector<Qnn_MemHandle_t> cached_output_handles_;
+  std::vector<int> cached_output_fds_;
+  std::vector<uint32_t> cached_output_sizes_;
+  std::vector<void *> cached_output_ptrs_;
+  bool dmabuf_cache_initialized_{ false };
 };  // class QnnInference
 
 }  // namespace qrb::inference_mgr
