@@ -524,8 +524,7 @@ StatusCode QnnInference::init_performance()
 
   // Determine HTP performance mode from environment variables.
   // Priority order: BURST > SUSTAINED_HIGH > BALANCED > POWER_SAVER > default
-  auto get_perf_mode =
-      []() -> std::pair<QnnHtpPerfInfrastructure_PowerMode_t, const char *> {
+  auto get_perf_mode = []() -> std::pair<QnnHtpPerfInfrastructure_PowerMode_t, const char *> {
     auto env_is_set = [](const char * name) -> bool {
       const char * v = std::getenv(name);
       return (v != nullptr && std::string(v) == "1");
@@ -734,8 +733,7 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
   switch (binary_info->version) {
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_1: {
       const auto & info = binary_info->contextBinaryInfoV1;
-      QRB_INFO("Context binary info (V1): SDK build=",
-          (info.buildId ? info.buildId : "unknown"),
+      QRB_INFO("Context binary info (V1): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
       graphs_count_ = info.numGraphs;
       if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV1)) {
@@ -745,8 +743,7 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
     }
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_2: {
       const auto & info = binary_info->contextBinaryInfoV2;
-      QRB_INFO("Context binary info (V2): SDK build=",
-          (info.buildId ? info.buildId : "unknown"),
+      QRB_INFO("Context binary info (V2): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
       graphs_count_ = info.numGraphs;
       if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV2)) {
@@ -756,13 +753,14 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
     }
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_3: {
       const auto & info = binary_info->contextBinaryInfoV3;
-      QRB_INFO("Context binary info (V3/FCB): SDK build=",
-          (info.buildId ? info.buildId : "unknown"),
+      QRB_INFO(
+          "Context binary info (V3/FCB): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"),
           ", SoC model ID=", info.socModel);
       if (info.socModel == 0 && info.socVersion == nullptr) {
-        QRB_INFO("Model appears to be a Flexible Context Binary (FCB) — "
-                 "compatible with multiple SoC targets");
+        QRB_INFO(
+            "Model appears to be a Flexible Context Binary (FCB) — "
+            "compatible with multiple SoC targets");
       } else {
         QRB_INFO("Model is a standard context binary targeting a specific SoC");
       }
@@ -784,9 +782,9 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
 StatusCode QnnInference::create_context_from_binary(const std::shared_ptr<uint8_t[]> model_buf,
     const uint64_t model_buf_size)
 {
-  auto create_rc = qnn_interface_->interface_.contextCreateFromBinary(backend_handle_,
-      device_handle_, nullptr, static_cast<void *>(model_buf.get()), model_buf_size, &context_,
-      nullptr);
+  auto create_rc =
+      qnn_interface_->interface_.contextCreateFromBinary(backend_handle_, device_handle_, nullptr,
+          static_cast<void *>(model_buf.get()), model_buf_size, &context_, nullptr);
   if (QNN_SUCCESS != create_rc) {
     QRB_ERROR("Could not create context from binary!");
     log_error_details(create_rc);
