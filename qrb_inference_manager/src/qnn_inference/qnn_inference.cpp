@@ -148,22 +148,9 @@ StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
     uint32_t dmabuf_size,
     uint64_t dmabuf_offset)
 {
-  // Track previous inference output resources for cleanup.
-  static std::vector<Qnn_MemHandle_t> prev_output_handles;
-
   if (dmabuf_fd < 0 || dmabuf_size == 0) {
     QRB_ERROR("Invalid DMA-BUF input: fd=", dmabuf_fd, " size=", dmabuf_size);
     return StatusCode::FAILURE;
-  }
-
-  // Clean up previous output handles before starting new inference
-  if (!prev_output_handles.empty()) {
-    for (auto & handle : prev_output_handles) {
-      if (handle != nullptr) {
-        qnn_interface_->interface_.memDeRegister(&handle, 1u);
-      }
-    }
-    prev_output_handles.clear();
   }
 
   for (uint32_t g = 0; g < graphs_count_; g++) {
@@ -184,161 +171,137 @@ StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
       return StatusCode::FAILURE;
     }
 
-    if (graph_info.num_of_input_tensors == 1) {  // for single input tensor
-      Qnn_MemDescriptor_t input_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
-      input_mem_desc.memShape = { io_tensors.inputs_[0].v1.rank,
-        io_tensors.inputs_[0].v1.dimensions, nullptr };
-      input_mem_desc.dataType = io_tensors.inputs_[0].v1.dataType;
-      input_mem_desc.memType = QNN_MEM_TYPE_ION;
-      input_mem_desc.ionInfo.fd = dmabuf_fd;
-
-      io_tensors.inputs_[0].v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
-      io_tensors.inputs_[0].v1.memHandle = nullptr;
-
-      auto rc = qnn_interface_->interface_.memRegister(
-          context_, &input_mem_desc, 1u, &io_tensors.inputs_[0].v1.memHandle);
-      if (QNN_SUCCESS != rc) {
-        const char * err_msg = nullptr;
-        qnn_interface_->interface_.errorGetMessage(rc, &err_msg);
-        QRB_ERROR(
-            "memRegister(input DMA-BUF) failed: ", (err_msg ? err_msg : "unknown"), " (", rc, ")");
-        return StatusCode::FAILURE;
+    // INPUT: Register once, reuse across frames
+    if (cached_input_fd_ != dmabuf_fd || cached_input_handle_ == nullptr) {
+      // Input fd changed or first frame: (de)register
+      if (cached_input_handle_ != nullptr) {
+        qnn_interface_->interface_.memDeRegister(&cached_input_handle_, 1u);
+        cached_input_handle_ = nullptr;
       }
-    } else {  // for multiple input tensors
-      uint64_t offset = 0;
-      for (uint32_t i = 0; i < graph_info.num_of_input_tensors; i++) {
-        auto & input_tensor = io_tensors.inputs_[i];
 
+      if (graph_info.num_of_input_tensors == 1) {
         Qnn_MemDescriptor_t input_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
-        input_mem_desc.memShape = { input_tensor.v1.rank, input_tensor.v1.dimensions, nullptr };
-        input_mem_desc.dataType = input_tensor.v1.dataType;
+        input_mem_desc.memShape = { io_tensors.inputs_[0].v1.rank,
+          io_tensors.inputs_[0].v1.dimensions, nullptr };
+        input_mem_desc.dataType = io_tensors.inputs_[0].v1.dataType;
+        input_mem_desc.memType = QNN_MEM_TYPE_ION;
+        input_mem_desc.ionInfo.fd = dmabuf_fd;
+
+        auto rc = qnn_interface_->interface_.memRegister(
+            context_, &input_mem_desc, 1u, &cached_input_handle_);
+        if (QNN_SUCCESS != rc) {
+          const char * err_msg = nullptr;
+          qnn_interface_->interface_.errorGetMessage(rc, &err_msg);
+          QRB_ERROR("memRegister(input) failed: ", (err_msg ? err_msg : "unknown"));
+          cached_input_handle_ = nullptr;
+          return StatusCode::FAILURE;
+        }
+      } else {
+        // Multi-input: use offset-based registration (first input only cached)
+        Qnn_MemDescriptor_t input_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
+        input_mem_desc.memShape = { io_tensors.inputs_[0].v1.rank,
+          io_tensors.inputs_[0].v1.dimensions, nullptr };
+        input_mem_desc.dataType = io_tensors.inputs_[0].v1.dataType;
         input_mem_desc.memType = QNN_MEM_TYPE_CUSTOM;
-        input_tensor.v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
-        input_tensor.v1.memHandle = nullptr;
 
         QnnMemHtp_Descriptor_t htp_mem_desc;
         htp_mem_desc.type = QNN_HTP_MEM_SHARED_BUFFER;
         htp_mem_desc.size = dmabuf_size;
-
-        QnnHtpMem_SharedBufferConfig_t htp_shared_buf_config = { dmabuf_fd, offset };
+        QnnHtpMem_SharedBufferConfig_t htp_shared_buf_config = { dmabuf_fd, 0 };
         htp_mem_desc.sharedBufferConfig = htp_shared_buf_config;
         input_mem_desc.customInfo = &htp_mem_desc;
 
         auto rc = qnn_interface_->interface_.memRegister(
-            context_, &input_mem_desc, 1u, &input_tensor.v1.memHandle);
+            context_, &input_mem_desc, 1u, &cached_input_handle_);
         if (QNN_SUCCESS != rc) {
           const char * err_msg = nullptr;
           qnn_interface_->interface_.errorGetMessage(rc, &err_msg);
-          QRB_ERROR("memRegister(input DMA-BUF) failed: ", (err_msg ? err_msg : "unknown"), " (",
-              rc, ")");
+          QRB_ERROR("memRegister(input) failed: ", (err_msg ? err_msg : "unknown"));
+          cached_input_handle_ = nullptr;
+          return StatusCode::FAILURE;
+        }
+      }
+
+      cached_input_fd_ = dmabuf_fd;
+    }
+
+    // Set cached input handle on tensor
+    io_tensors.inputs_[0].v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
+    io_tensors.inputs_[0].v1.memHandle = cached_input_handle_;
+
+    // OUTPUT: Allocate once, reuse across frames
+    if (!dmabuf_cache_initialized_) {
+      constexpr int RPCMEM_HEAP_ID_SYSTEM = 25;
+      constexpr uint32_t RPCMEM_DEFAULT_FLAGS = 1;
+
+      cached_output_buffers_.resize(graph_info.num_of_output_tensors);
+      cached_output_handles_.resize(graph_info.num_of_output_tensors, nullptr);
+      cached_output_fds_.resize(graph_info.num_of_output_tensors, -1);
+      cached_output_sizes_.resize(graph_info.num_of_output_tensors, 0);
+      cached_output_ptrs_.resize(graph_info.num_of_output_tensors, nullptr);
+
+      for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
+        auto * out_tensor = &(io_tensors.outputs_[out_i]);
+        auto shape = io_tensors.get_tensor_shape(out_tensor);
+        uint32_t output_tensor_size = io_tensors.get_tensor_size(out_tensor, shape);
+
+        auto rpc_mgr = std::make_shared<RpcMemManager>();
+        if (StatusCode::SUCCESS != rpc_mgr->init()) {
+          QRB_ERROR("RpcMemManager init failed");
           return StatusCode::FAILURE;
         }
 
-        auto shape = io_tensors.get_tensor_shape(&input_tensor);
-        uint32_t input_tensor_size = io_tensors.get_tensor_size(&input_tensor, shape);
-        offset = offset + input_tensor_size;
+        if (StatusCode::SUCCESS !=
+            rpc_mgr->alloc(output_tensor_size, RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS)) {
+          QRB_ERROR("RpcMemManager alloc failed for size: ", output_tensor_size);
+          return StatusCode::FAILURE;
+        }
+
+        int fd = rpc_mgr->get_fd();
+        void * ptr = rpc_mgr->get_ptr();
+
+        Qnn_MemDescriptor_t out_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
+        out_mem_desc.memShape = { out_tensor->v1.rank, out_tensor->v1.dimensions, nullptr };
+        out_mem_desc.dataType = out_tensor->v1.dataType;
+        out_mem_desc.memType = QNN_MEM_TYPE_ION;
+        out_mem_desc.ionInfo.fd = fd;
+
+        Qnn_MemHandle_t out_mem_handle = nullptr;
+        auto out_rc =
+            qnn_interface_->interface_.memRegister(context_, &out_mem_desc, 1u, &out_mem_handle);
+        if (QNN_SUCCESS != out_rc) {
+          const char * err_msg = nullptr;
+          qnn_interface_->interface_.errorGetMessage(out_rc, &err_msg);
+          QRB_ERROR("memRegister(output) failed: ", (err_msg ? err_msg : "unknown"));
+          return StatusCode::FAILURE;
+        }
+
+        // Keep rpc_mgr alive (owns the buffer) but don't disown - we manage lifecycle
+        cached_output_buffers_[out_i] = rpc_mgr;
+        cached_output_handles_[out_i] = out_mem_handle;
+        cached_output_fds_[out_i] = fd;
+        cached_output_sizes_[out_i] = output_tensor_size;
+        cached_output_ptrs_[out_i] = ptr;
       }
+
+      dmabuf_cache_initialized_ = true;
     }
 
-    // Register each output tensor as its own ION buffer (rpcmem-backed) to get a distinct fd.
-    std::vector<Qnn_MemHandle_t> output_mem_handles(graph_info.num_of_output_tensors, nullptr);
-    std::vector<int> output_fds(graph_info.num_of_output_tensors, -1);
-    std::vector<uint32_t> output_sizes(graph_info.num_of_output_tensors, 0);
-    std::vector<void *> output_ptrs(graph_info.num_of_output_tensors, nullptr);
-
-    constexpr int RPCMEM_HEAP_ID_SYSTEM = 25;
-    constexpr uint32_t RPCMEM_DEFAULT_FLAGS = 1;
-
-    auto deregister_all_tensors = [&] {
-      for (uint32_t i = 0; i < graph_info.num_of_output_tensors; i++) {
-        if (output_mem_handles[i] != nullptr) {
-          qnn_interface_->interface_.memDeRegister(&output_mem_handles[i], 1u);
-          output_mem_handles[i] = nullptr;
-        }
-      }
-
-      for (uint32_t i = 0; i < graph_info.num_of_input_tensors; i++) {
-        if (io_tensors.inputs_[i].v1.memHandle != nullptr) {
-          qnn_interface_->interface_.memDeRegister(&io_tensors.inputs_[i].v1.memHandle, 1u);
-        }
-        io_tensors.inputs_[i].v1.memHandle = nullptr;
-      }
-    };
-
+    // Set cached output handles on tensors
     for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
-      auto * out_tensor = &(io_tensors.outputs_[out_i]);
-
-      auto shape = io_tensors.get_tensor_shape(out_tensor);
-      uint32_t output_tensor_size = io_tensors.get_tensor_size(out_tensor, shape);
-
-      // IMPORTANT:
-      // output RPCMEM buffer ownership is transferred to downstream via dmabuf_ptr, where it will
-      // be freed using rpcmem_free(ptr). Therefore, must NOT keep an owning RpcMemManager here;
-      // otherwise it will free the buffer at end of scope (causing invalid output).
-      auto rpc_mgr = std::make_shared<RpcMemManager>();
-      if (StatusCode::SUCCESS != rpc_mgr->init()) {
-        QRB_ERROR("RpcMemManager init failed");
-        deregister_all_tensors();
-        return StatusCode::FAILURE;
-      }
-
-      if (StatusCode::SUCCESS !=
-          rpc_mgr->alloc(output_tensor_size, RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS)) {
-        QRB_ERROR("RpcMemManager alloc failed for size: ", output_tensor_size);
-        deregister_all_tensors();
-        return StatusCode::FAILURE;
-      }
-
-      int fd = rpc_mgr->get_fd();
-      void * ptr = rpc_mgr->get_ptr();
-
-      Qnn_MemDescriptor_t out_mem_desc = QNN_MEM_DESCRIPTOR_INIT;
-      out_mem_desc.memShape = { out_tensor->v1.rank, out_tensor->v1.dimensions, nullptr };
-      out_mem_desc.dataType = out_tensor->v1.dataType;
-      out_mem_desc.memType = QNN_MEM_TYPE_ION;
-      out_mem_desc.ionInfo.fd = fd;
-
-      Qnn_MemHandle_t out_mem_handle = nullptr;
-      auto out_rc =
-          qnn_interface_->interface_.memRegister(context_, &out_mem_desc, 1u, &out_mem_handle);
-      if (QNN_SUCCESS != out_rc) {
-        const char * err_msg = nullptr;
-        qnn_interface_->interface_.errorGetMessage(out_rc, &err_msg);
-        QRB_ERROR(
-            "memRegister(output ION) failed: ", (err_msg ? err_msg : "unknown"), " (", out_rc, ")");
-        deregister_all_tensors();
-        return StatusCode::FAILURE;
-      }
-
-      out_tensor->v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
-      out_tensor->v1.memHandle = out_mem_handle;
-
-      output_mem_handles[out_i] = out_mem_handle;
-      output_fds[out_i] = fd;
-      output_sizes[out_i] = output_tensor_size;
-      output_ptrs[out_i] = ptr;
-
-      // Transfer ownership to downstream. Downstream will call rpcmem_free(ptr) using dmabuf_ptr.
-      // Ensure destructor does NOT free the buffer. Still keep this object alive until the
-      // next inference cycle to keep libcdsprpc handle and symbol pointers valid.
-      rpc_mgr->disown();
-      static std::vector<std::shared_ptr<RpcMemManager>> s_output_keepalive;
-      s_output_keepalive.push_back(rpc_mgr);
+      io_tensors.outputs_[out_i].v1.memType = QNN_TENSORMEMTYPE_MEMHANDLE;
+      io_tensors.outputs_[out_i].v1.memHandle = cached_output_handles_[out_i];
     }
 
+    // EXECUTE: No register/deregister overhead
     auto exec_rc = qnn_interface_->interface_.graphExecute(graph_info.graph, io_tensors.inputs_,
         io_tensors.num_of_input_tensors_, io_tensors.outputs_, io_tensors.num_of_output_tensors_,
         nullptr, nullptr);
 
     if (QNN_GRAPH_NO_ERROR != exec_rc) {
       QRB_ERROR("QNN graphExecute failed with code: ", exec_rc);
-      deregister_all_tensors();
       return StatusCode::FAILURE;
     }
-
-    // Immediately deregister input handle after graph execution completes
-    // The input memory is owned by the caller (pre-process node) and will be reused
-    deregister_all_tensors();
 
 #ifndef __hexagon__
     output_tensor_.clear();
@@ -346,31 +309,26 @@ StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
 
     for (uint32_t out_i = 0; out_i < graph_info.num_of_output_tensors; out_i++) {
       const auto * out_tensor = &(io_tensors.outputs_[out_i]);
-
       auto shape = io_tensors.get_tensor_shape(out_tensor);
 
       OutputTensor ot;
       ot.output_tensor_name = out_tensor->v1.name;
-
       ot.output_tensor_shape.reserve(shape.size());
       for (size_t i = 0; i < shape.size(); i++) {
         ot.output_tensor_shape.push_back(static_cast<uint32_t>(shape[i]));
       }
-
       ot.data_type = io_tensors.qnn_dtype_to_qrb_dtype(out_tensor->v1.dataType);
 
-      // tensor data is in DMA-BUF
-      ot.output_dmabuf_fd = output_fds[out_i];
+      // Output is in cached DMA buffer (reused across frames)
+      ot.output_dmabuf_fd = cached_output_fds_[out_i];
       ot.output_dmabuf_offset = dmabuf_offset;
-      ot.output_dmabuf_size = output_sizes[out_i];
-      // Downstream will free this RPCMEM allocation using rpcmem_free(ptr).
-      ot.output_dmabuf_ptr = reinterpret_cast<uint64_t>(output_ptrs[out_i]);
+      ot.output_dmabuf_size = cached_output_sizes_[out_i];
+      // ptr=0 signals downstream should NOT free this buffer (it's reused)
+      ot.output_dmabuf_ptr = 0;
 
       output_tensor_.emplace_back(std::move(ot));
     }
 #endif
-
-    prev_output_handles = std::move(output_mem_handles);
   }
 
   return StatusCode::SUCCESS;
