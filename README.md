@@ -103,10 +103,6 @@ Please see [qrb_inference_manager APIs](./qrb_inference_manager/Documentation.md
     <th>Development Hardware</th>
     <th>Hardware Overview</th>
   </tr>
-  <tr>
-    <td>Qualcomm Dragonwing™ RB3 Gen2</td>
-    <th><a href="https://www.qualcomm.com/developer/hardware/rb3-gen-2-development-kit"><img src="https://s7d1.scene7.com/is/image/dmqualcommprod/rb3-gen2-carousel?fmt=webp-alpha&qlt=85" width="180"/></a></th>
-  </tr>
     <tr>
     <td>Qualcomm Dragonwing™ IQ-9075 EVK</td>
     <th><a href="https://www.qualcomm.com/products/internet-of-things/industrial-processors/iq9-series/iq-9075"><img src="https://s7d1.scene7.com/is/image/dmqualcommprod/dragonwing-IQ-9075-EVK?$QC_Responsive$&fmt=png-alpha" width="160"></a></th>
@@ -152,11 +148,7 @@ sudo apt install ros-jazzy-qrb-ros-nn-inference
 
 3. test qrb_ros_nn_inference with YOLOv8 detection model
 
-    3.1 Please follow the [guides](https://github.com/quic/ai-hub-models/tree/main/qai_hub_models/models/yolov8_det#export-for-on-device-deployment) to get yolov8_det.tflite model. For the model run on RB3 gen2, you can run the commands:
-
-    ```bash
-    python3 -m qai_hub_models.models.yolov8_det.export --target-runtime tflite --device "QCS6490 (Proxy)"
-    ```
+    3.1 Please follow the [guides](https://github.com/quic/ai-hub-models/tree/main/qai_hub_models/models/yolov8_det#export-for-on-device-deployment) to get yolov8_det.tflite model.
 
     3.2 prepare a image for object detecion
 
