@@ -24,6 +24,7 @@ set(SOURCES
 )
 
 ament_auto_add_library(qrb_inference_manager SHARED ${SOURCES})
+target_include_directories(qrb_inference_manager PRIVATE /usr/include/QNN)
 target_link_libraries(qrb_inference_manager tensorflowlite_c QnnTFLiteDelegate)
 
 set_target_properties(
