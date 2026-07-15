@@ -11,6 +11,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <mutex>
 #include <numeric>
 #include <vector>
 
@@ -119,6 +120,9 @@ public:
       const uint32_t tensor_cnt,
       const Qnn_Tensor_t * tensor_src);
   StatusCode write_input_tensors(const std::vector<uint8_t> & input_data);
+  // Zero-copy variant: points ClientBuffer.data directly at src without memcpy.
+  // src must remain valid until graphExecute returns.
+  StatusCode write_input_tensors_ptr(const void * src, size_t src_size);
   std::vector<OutputTensor> read_output_tensors(const uint32_t number_of_outputs);
   void free_qnn_tensors(Qnn_Tensor_t * tensors, uint32_t tensors_cnt);
   StatusCode tensor_info_deep_copy(Qnn_Tensor_t * dst, const Qnn_Tensor_t * src);

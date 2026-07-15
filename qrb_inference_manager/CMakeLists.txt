@@ -14,6 +14,7 @@ ament_auto_find_build_dependencies()
 
 include_directories(
   include
+  /usr/include/QNN
 )
 
 set(SOURCES

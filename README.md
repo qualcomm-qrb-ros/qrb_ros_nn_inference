@@ -90,6 +90,65 @@
   </tr>
 </table>
 
+#### `QrbRosSharedInferenceNode`
+
+`QrbRosSharedInferenceNode` loads a single multi-graph QNN context binary once (e.g. two models compiled into one merged/weight-shared context binary) and exposes one input/output tensor topic pair per graph, so the graphs share one backend/device/context instead of each needing its own.
+
+##### ROS node parameters
+
+<table>
+  <tr>
+    <th>Parameter</th>
+    <th>Type</th>
+    <th>Default Value</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>backend_option</td>
+    <td>string</td>
+    <td>""</td>
+    <td>Hardware acceleration option for model inference, vaild values are listed <a href="https://github.com/qualcomm-qrb-ros/qrb_ros_nn_inference/blob/main/qrb_inference_manager/Documentation.md#2.1" target="_blank">here</a></td>
+  </tr>
+  <tr>
+    <td>model_path</td>
+    <td>string</td>
+    <td>""</td>
+    <td>Path of the combined multi-graph context binary (.bin) file</td>
+  </tr>
+  <tr>
+    <td>graph_name_0</td>
+    <td>string</td>
+    <td>""</td>
+    <td>Name of the first graph in the context binary, as embedded at compile time</td>
+  </tr>
+  <tr>
+    <td>graph_name_1</td>
+    <td>string</td>
+    <td>""</td>
+    <td>Name of the second graph in the context binary, as embedded at compile time</td>
+  </tr>
+</table>
+
+##### ROS topics
+
+<table>
+  <tr>
+    <th>Topic Name</th>
+    <th>Message Type</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>qrb_inference_input_tensor_N</td>
+    <td><a href="https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces/blob/main/qrb_ros_tensor_list_msgs/msg/TensorList.msg" target="_blank">TensorList</a></td>
+    <td>Subscribed topic for graph N (N = 0, 1, ...)</td>
+  </tr>
+  <tr>
+    <td>qrb_inference_output_tensor_N</td>
+    <td><a href="https://github.com/qualcomm-qrb-ros/qrb_ros_interfaces/blob/main/qrb_ros_tensor_list_msgs/msg/TensorList.msg" target="_blank">TensorList</a></td>
+    <td>Published topic for graph N (N = 0, 1, ...)</td>
+  </tr>
+</table>
+
 ### 🔹 `qrb_inference_manager` APIs
 
 Please see [qrb_inference_manager APIs](./qrb_inference_manager/Documentation.md).
