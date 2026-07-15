@@ -1,5 +1,9 @@
 # Changelog for package qrb_ros_nn_inference
 
+## 2.3.0 (2026-07-15)
+- add multi-graph shared-context inference node (QrbRosSharedInferenceNode)
+- Contributors👉 Sam Freund
+
 ## 2.2.0 (2026-05-18)
 - add HTP performance infrastructure initialization for binary model inference
 - support QNN_HTP_NO_PERF env var to opt out of performance init

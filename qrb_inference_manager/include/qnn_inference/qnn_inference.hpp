@@ -117,19 +117,54 @@ private:
 class QnnInference : public QrbInference
 {
 public:
+  // Standard constructor: loads model_path, creates its own backend/device/context.
   QnnInference(const std::string & model_path, const std::string & backend_option);
+
+  // Shared-context constructor: borrows an already-created context and interface.
+  // Calls only graphRetrieve for graph_name; does NOT own the context lifetime.
+  // owner_graph_info: tensor metadata from the owner's GraphInfo for this graph (may be nullptr).
+  QnnInference(Qnn_ContextHandle_t shared_context,
+      QnnInterface * shared_interface,
+      const std::string & graph_name,
+      const GraphInfo * owner_graph_info = nullptr);
+
   ~QnnInference();
   StatusCode inference_init() override;
   StatusCode inference_graph_init() override;
   StatusCode inference_execute(const std::vector<uint8_t> & input_tensor_data) override;
+  // Zero-copy variant: passes src pointer directly to QNN without memcpy.
+  StatusCode inference_execute_ptr(const void * src, size_t src_size);
+  // Hybrid: regular input copy + rpcmem output buffers (zero-copy output).
+  StatusCode inference_execute_ptr_dmabuf_out(const void * src, size_t src_size);
   StatusCode inference_execute_dmabuf(int dmabuf_fd, uint32_t dmabuf_size, uint64_t dmabuf_offset);
   const std::vector<OutputTensor> get_output_tensors() override;
+
+  // Accessors used by QrbSharedContextLoader to share context/interface with graph instances.
+  Qnn_ContextHandle_t get_context() const { return context_; }
+  QnnInterface * get_interface() const { return qnn_interface_.get(); }
+
+  // Returns the GraphInfo for the named graph, or nullptr if not found.
+  // Used by QrbSharedContextLoader to copy tensor metadata into shared-context instances.
+  const GraphInfo * get_graph_info_for(const std::string & graph_name) const
+  {
+    if (graphs_info_ == nullptr) return nullptr;
+    for (uint32_t i = 0; i < graphs_count_; ++i) {
+      const GraphInfo & gi = (*graphs_info_)[i];
+      if (gi.graph_name != nullptr && graph_name == gi.graph_name) {
+        return &gi;
+      }
+    }
+    return nullptr;
+  }
 
 private:
   const std::string model_path_;
   const std::string backend_option_;
   const std::string qnn_syslib_path_ = "libQnnSystem.so";
   bool load_model_from_binary = false;
+  // When false this instance borrowed its context from QrbSharedContextLoader
+  // and must not free the context, device, or backend on destruction.
+  bool owned_context_ = true;
   void * backend_lib_handle = nullptr;
   void * sys_lib_handle_ = nullptr;
   void * backend_handle_ = nullptr;
@@ -144,6 +179,14 @@ private:
   bool perf_initialized_ = false;
   std::vector<OutputTensor> output_tensor_;
   std::unique_ptr<QnnInterface> qnn_interface_{ nullptr };
+  // When owned_context_ is false, this holds the borrowed interface pointer (not owned).
+  QnnInterface * borrowed_interface_{ nullptr };
+
+  // Returns the active interface regardless of ownership mode.
+  QnnInterface * iface() const
+  {
+    return owned_context_ ? qnn_interface_.get() : borrowed_interface_;
+  }
 
   StatusCode initialize_backend();
   StatusCode create_device();
@@ -162,13 +205,15 @@ private:
   std::tuple<std::shared_ptr<uint8_t[]>, uint64_t> read_binary_model();
   StatusCode get_and_set_graph_info_from_binary(const std::shared_ptr<uint8_t[]> model_buf,
       const uint64_t model_buf_size);
-  template <typename T>
-  StatusCode copy_graph_info(T graph_info_from_binary);
+  // GraphInfoMember selects which versioned member (graphInfoV1/V2/V3) of
+  // QnnSystemContext_GraphInfo_t to read from for a given binary-info version.
+  template <auto GraphInfoMember>
+  StatusCode copy_graph_info(const QnnSystemContext_GraphInfo_t * graphs_array);
   StatusCode set_up_graph_info(const QnnSystemContext_BinaryInfo_t * binary_info);
   StatusCode create_context_from_binary(const std::shared_ptr<uint8_t[]> model_buf,
       const uint64_t model_buf_size);
 
-  // DMA buffer pool: cached handles for zero-overhead frame-to-frame reuse
+  // DMA buffer pool: cached handles for zero-overhead frame-to-frame reuse (dmabuf path)
   int cached_input_fd_{ -1 };
   Qnn_MemHandle_t cached_input_handle_{ nullptr };
   std::vector<std::shared_ptr<RpcMemManager>> cached_output_buffers_;
