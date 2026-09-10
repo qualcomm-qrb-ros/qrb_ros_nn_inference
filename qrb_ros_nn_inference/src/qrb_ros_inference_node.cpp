@@ -3,6 +3,8 @@
 
 #include "qrb_ros_nn_inference/qrb_ros_inference_node.hpp"
 
+#include <stdexcept>
+
 namespace qrb_ros::nn_inference
 {
 
@@ -16,7 +18,11 @@ QrbRosInferenceNode::QrbRosInferenceNode(const rclcpp::NodeOptions & options)
   std::string model_path = this->declare_parameter("model_path", "");
 
   if (false == this->init(model_path, backend_option)) {
-    rclcpp::shutdown();
+    // Throwing keeps the real reason - printed by init() just above - as the
+    // error rclcpp_components reports. Calling rclcpp::shutdown() here instead
+    // invalidates the context and makes create_publisher() below fail with a
+    // misleading "rcl node's context is invalid".
+    throw std::runtime_error("Failed to initialize the inference manager");
   }
 
   rclcpp::PublisherOptions pub_option;
@@ -25,7 +31,8 @@ QrbRosInferenceNode::QrbRosInferenceNode(const rclcpp::NodeOptions & options)
       this->create_publisher<custom_msg::TensorList>("qrb_inference_output_tensor", 10, pub_option);
 
   auto sub_opt = rclcpp::SubscriptionOptions();
-  sub_opt.callback_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  sub_opt.callback_group =
+      this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   this->sub_ = this->create_subscription<custom_msg::TensorList>("qrb_inference_input_tensor", 10,
       std::bind(&QrbRosInferenceNode::subscription_callback, this, std::placeholders::_1), sub_opt);
 
@@ -40,17 +47,22 @@ void QrbRosInferenceNode::subscription_callback(const custom_msg::TensorList & m
 {
   RCLCPP_INFO(this->get_logger(), "Got model input data, start executing inference...");
 
-  const auto input_tensor = (msg.tensor_list)[0];
+  if (msg.tensor_list.empty()) {
+    RCLCPP_ERROR(this->get_logger(), "Got an empty tensor list, skipping inference");
+    return;
+  }
+
+  const auto & input_tensor = msg.tensor_list[0];
   if (false == this->qrb_inference_mgr_->inference_execute(input_tensor.data)) {
     RCLCPP_ERROR(this->get_logger(), "Inference execute fail!");
-    rclcpp::shutdown();
+    return;
   }
 
   RCLCPP_INFO(this->get_logger(), "Inference execute successfully!");
 
   custom_msg::TensorList pub_tensors;
   pub_tensors.header = msg.header;
-  this->publish_msg(pub_tensors);
+  this->publish_msg(std::move(pub_tensors));
 }
 
 /**
@@ -58,14 +70,19 @@ void QrbRosInferenceNode::subscription_callback(const custom_msg::TensorList & m
  */
 void QrbRosInferenceNode::publish_msg(custom_msg::TensorList pub_tensors)
 {
-  const auto result_tensors = this->qrb_inference_mgr_->get_output_tensors();
+  auto result_tensors = this->qrb_inference_mgr_->get_output_tensors();
 
-  for (auto rt : result_tensors) {
+  if (result_tensors.empty()) {
+    RCLCPP_ERROR(this->get_logger(), "Inference produced no output tensor, not publishing");
+    return;
+  }
+
+  for (auto & rt : result_tensors) {
     custom_msg::Tensor tensor;
     tensor.data_type = rt.data_type;
-    tensor.name = rt.output_tensor_name;
-    tensor.shape = rt.output_tensor_shape;
-    tensor.data = rt.output_tensor_data;
+    tensor.name = std::move(rt.output_tensor_name);
+    tensor.shape = std::move(rt.output_tensor_shape);
+    tensor.data = std::move(rt.output_tensor_data);
     pub_tensors.tensor_list.emplace_back(std::move(tensor));
   }
 

@@ -239,6 +239,13 @@ void QnnInference::free_graphs_info()
 
 void QnnInference::free_context()
 {
+  // Reached with a null handle whenever graph init failed and the constructor
+  // unwound, where contextFree() would only log a confusing "Invalid context
+  // handle" on top of the real error.
+  if (nullptr == context_) {
+    return;
+  }
+
   if (QNN_CONTEXT_NO_ERROR != qnn_interface_->interface.contextFree(context_, nullptr)) {
     QRB_ERROR("Failed to free context!");
   }
