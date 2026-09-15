@@ -8,6 +8,9 @@
   <a href="https://docs.ros.org/en/jazzy/" target="_blank"><img src="https://img.shields.io/badge/ROS%20Jazzy-1c428a?style=for-the-badge&logo=ros&logoColor=white" alt="Jazzy"></a>
 </div>
 
+> [!NOTE]
+> This repository is currently migrating to ROS 2 Lyrical. Documentation may still reference Jazzy, and some features may not be fully supported yet.
+
 ---
 
 ## 👋 Overview
