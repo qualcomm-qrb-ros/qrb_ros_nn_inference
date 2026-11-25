@@ -42,6 +42,7 @@ void QrbRosInferenceNode::subscription_callback(const custom_msg::TensorList & m
 
   const auto input_tensor = (msg.tensor_list)[0];
 
+#ifdef QRB_TENSOR_HAS_DMABUF
   if (input_tensor.dmabuf_fd >= 0 && input_tensor.dmabuf_size > 0) {
     if (false == this->qrb_inference_mgr_->inference_execute_dmabuf(input_tensor.dmabuf_fd,
                      input_tensor.dmabuf_size, input_tensor.dmabuf_offset)) {
@@ -54,6 +55,12 @@ void QrbRosInferenceNode::subscription_callback(const custom_msg::TensorList & m
       rclcpp::shutdown();
     }
   }
+#else
+  if (false == this->qrb_inference_mgr_->inference_execute(input_tensor.data)) {
+    RCLCPP_ERROR(this->get_logger(), "Inference execute fail!");
+    rclcpp::shutdown();
+  }
+#endif
 
   RCLCPP_INFO(this->get_logger(), "Inference execute successfully!");
 
@@ -75,6 +82,7 @@ void QrbRosInferenceNode::publish_msg(custom_msg::TensorList pub_tensors)
     tensor.name = rt.output_tensor_name;
     tensor.shape = rt.output_tensor_shape;
 
+#ifdef QRB_TENSOR_HAS_DMABUF
     if (rt.output_dmabuf_fd >= 0 && rt.output_dmabuf_size > 0) {
       tensor.dmabuf_fd = rt.output_dmabuf_fd;
       tensor.dmabuf_size = rt.output_dmabuf_size;
@@ -82,6 +90,9 @@ void QrbRosInferenceNode::publish_msg(custom_msg::TensorList pub_tensors)
       tensor.dmabuf_ptr = rt.output_dmabuf_ptr;
     } else
       tensor.data = std::move(rt.output_tensor_data);
+#else
+    tensor.data = std::move(rt.output_tensor_data);
+#endif
 
     pub_tensors.tensor_list.emplace_back(std::move(tensor));
   }

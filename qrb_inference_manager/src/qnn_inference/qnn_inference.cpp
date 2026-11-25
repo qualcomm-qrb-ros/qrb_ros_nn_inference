@@ -23,31 +23,114 @@ QnnInference::QnnInference(const std::string & model_path, const std::string & b
   }
 }
 
+QnnInference::QnnInference(Qnn_ContextHandle_t shared_context,
+    QnnInterface * shared_interface,
+    const std::string & graph_name,
+    const GraphInfo * owner_graph_info)
+  : owned_context_(false), borrowed_interface_(shared_interface)
+{
+  // Borrow the already-created context and interface — do not take ownership.
+  context_ = shared_context;
+
+  QRB_INFO("Retrieving shared-context graph: '", graph_name, "'");
+
+  // Allocate graphs_info_ as a pointer to a contiguous GraphInfo array (same layout as owner).
+  graphs_info_ = (GraphInfo **)calloc(1, sizeof(GraphInfo *));
+  if (graphs_info_ == nullptr) {
+    QRB_ERROR("Failed to allocate graphs_info_ for shared-context graph: ", graph_name);
+    return;
+  }
+  *graphs_info_ = (GraphInfo *)calloc(1, sizeof(GraphInfo));
+  if (*graphs_info_ == nullptr) {
+    QRB_ERROR("Failed to allocate GraphInfo for shared-context graph: ", graph_name);
+    free(graphs_info_);
+    graphs_info_ = nullptr;
+    return;
+  }
+
+  GraphInfo & gi = (*graphs_info_)[0];
+
+  auto rc = borrowed_interface_->interface_.graphRetrieve(
+      context_, graph_name.c_str(), &(gi.graph));
+  if (QNN_SUCCESS != rc) {
+    QRB_ERROR("graphRetrieve failed for graph '", graph_name, "' rc=", rc);
+    return;
+  }
+  graphs_count_ = 1;
+
+  // Copy graph name.
+  gi.graph_name = (char *)malloc(graph_name.size() + 1);
+  if (gi.graph_name != nullptr) {
+    memcpy(gi.graph_name, graph_name.c_str(), graph_name.size() + 1);
+  }
+
+  // Copy tensor metadata from the owner's GraphInfo so inference_execute can set up I/O buffers.
+  if (owner_graph_info != nullptr) {
+    QnnTensor tensor_ops;
+    gi.num_of_input_tensors = owner_graph_info->num_of_input_tensors;
+    if (gi.num_of_input_tensors > 0 && owner_graph_info->input_tensors != nullptr) {
+      if (StatusCode::SUCCESS != tensor_ops.setup_tensors(
+              gi.input_tensors, gi.num_of_input_tensors, owner_graph_info->input_tensors)) {
+        QRB_ERROR("Failed to copy input tensor metadata for graph: ", graph_name);
+        graphs_count_ = 0;
+        return;
+      }
+    }
+    gi.num_of_output_tensors = owner_graph_info->num_of_output_tensors;
+    if (gi.num_of_output_tensors > 0 && owner_graph_info->output_tensors != nullptr) {
+      if (StatusCode::SUCCESS != tensor_ops.setup_tensors(
+              gi.output_tensors, gi.num_of_output_tensors, owner_graph_info->output_tensors)) {
+        QRB_ERROR("Failed to copy output tensor metadata for graph: ", graph_name);
+        graphs_count_ = 0;
+        return;
+      }
+    }
+    QRB_INFO("Shared-context graph '", graph_name, "': ",
+        gi.num_of_input_tensors, " input(s), ", gi.num_of_output_tensors, " output(s)");
+  } else {
+    QRB_WARNING("No owner_graph_info provided for '", graph_name,
+        "' — tensor metadata unavailable, inference may fail");
+  }
+
+  QRB_INFO("Shared-context graph '", graph_name, "' retrieved successfully");
+}
+
 QnnInference::~QnnInference()
 {
   free_graphs_info();
-  free_context();
-  free_device();
-  free_backend();
+  if (owned_context_) {
+    free_context();
+    free_device();
+    free_backend();
 
-  if (backend_lib_handle) {
-    ::dlclose(backend_lib_handle);
-    backend_lib_handle = nullptr;
-  }
+    if (backend_lib_handle) {
+      ::dlclose(backend_lib_handle);
+      backend_lib_handle = nullptr;
+    }
 
-  if (model_handle_) {
-    ::dlclose(model_handle_);
-    model_handle_ = nullptr;
-  }
+    if (model_handle_) {
+      ::dlclose(model_handle_);
+      model_handle_ = nullptr;
+    }
 
-  if (sys_lib_handle_) {
-    ::dlclose(sys_lib_handle_);
-    sys_lib_handle_ = nullptr;
+    if (sys_lib_handle_) {
+      ::dlclose(sys_lib_handle_);
+      sys_lib_handle_ = nullptr;
+    }
+  } else {
+    // Borrowed interface — do not delete, just null the pointer.
+    borrowed_interface_ = nullptr;
+    context_ = nullptr;
   }
 }
 
 StatusCode QnnInference::inference_init()
 {
+  // Shared-context instances have no backend/device to initialize.
+  if (!owned_context_) {
+    return StatusCode::SUCCESS;
+  }
+
   if (initialize_backend() != StatusCode::SUCCESS) {
     return StatusCode::FAILURE;
   }
@@ -61,6 +144,11 @@ StatusCode QnnInference::inference_init()
 
 StatusCode QnnInference::inference_graph_init()
 {
+  // Shared-context instances already have their graph retrieved in the constructor.
+  if (!owned_context_) {
+    return graphs_count_ > 0 ? StatusCode::SUCCESS : StatusCode::FAILURE;
+  }
+
   if (true == load_model_from_binary) {
     if (init_graph_from_binary() != StatusCode::SUCCESS) {
       return StatusCode::FAILURE;
@@ -101,6 +189,15 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
     QRB_ERROR("Input tensor is NULL!");
     return StatusCode::FAILURE;
   }
+  return inference_execute_ptr(input_tensor_data.data(), input_tensor_data.size());
+}
+
+StatusCode QnnInference::inference_execute_ptr(const void * src, size_t src_size)
+{
+  if (src == nullptr || src_size == 0) {
+    QRB_ERROR("Input tensor pointer is NULL or size is 0!");
+    return StatusCode::FAILURE;
+  }
 
   for (uint32_t i = 0; i < graphs_count_; i++) {
     const auto & graphs_info = (*(graphs_info_))[i];
@@ -120,12 +217,12 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
       return StatusCode::FAILURE;
     }
 
-    if (StatusCode::SUCCESS != io_tensors.write_input_tensors(input_tensor_data)) {
+    if (StatusCode::SUCCESS != io_tensors.write_input_tensors_ptr(src, src_size)) {
       QRB_ERROR("Write QNN input tensors failed!");
       return StatusCode::FAILURE;
     }
 
-    auto graph_exec_rc = this->qnn_interface_->interface_.graphExecute(graphs_info.graph,
+    auto graph_exec_rc = this->iface()->interface_.graphExecute(graphs_info.graph,
         io_tensors.inputs_, io_tensors.num_of_input_tensors_, io_tensors.outputs_,
         io_tensors.num_of_output_tensors_, nullptr, nullptr);
     if (QNN_GRAPH_NO_ERROR != graph_exec_rc) {
@@ -142,6 +239,14 @@ StatusCode QnnInference::inference_execute(const std::vector<uint8_t> & input_te
 #endif
   }
   return StatusCode::SUCCESS;
+}
+
+StatusCode QnnInference::inference_execute_ptr_dmabuf_out(const void * src, size_t src_size)
+{
+  // NOTE: QNN HTP requires both input and output to use the same memory path.
+  // Mixing ClientBuffer input with MEMHANDLE output causes graphExecute to crash.
+  // This method is kept for API completeness but falls back to regular execute.
+  return inference_execute_ptr(src, src_size);
 }
 
 StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
@@ -175,7 +280,7 @@ StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
     if (cached_input_fd_ != dmabuf_fd || cached_input_handle_ == nullptr) {
       // Input fd changed or first frame: (de)register
       if (cached_input_handle_ != nullptr) {
-        qnn_interface_->interface_.memDeRegister(&cached_input_handle_, 1u);
+        iface()->interface_.memDeRegister(&cached_input_handle_, 1u);
         cached_input_handle_ = nullptr;
       }
 
@@ -187,11 +292,11 @@ StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
         input_mem_desc.memType = QNN_MEM_TYPE_ION;
         input_mem_desc.ionInfo.fd = dmabuf_fd;
 
-        auto rc = qnn_interface_->interface_.memRegister(
+        auto rc = iface()->interface_.memRegister(
             context_, &input_mem_desc, 1u, &cached_input_handle_);
         if (QNN_SUCCESS != rc) {
           const char * err_msg = nullptr;
-          qnn_interface_->interface_.errorGetMessage(rc, &err_msg);
+          iface()->interface_.errorGetMessage(rc, &err_msg);
           QRB_ERROR("memRegister(input) failed: ", (err_msg ? err_msg : "unknown"));
           cached_input_handle_ = nullptr;
           return StatusCode::FAILURE;
@@ -211,11 +316,11 @@ StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
         htp_mem_desc.sharedBufferConfig = htp_shared_buf_config;
         input_mem_desc.customInfo = &htp_mem_desc;
 
-        auto rc = qnn_interface_->interface_.memRegister(
+        auto rc = iface()->interface_.memRegister(
             context_, &input_mem_desc, 1u, &cached_input_handle_);
         if (QNN_SUCCESS != rc) {
           const char * err_msg = nullptr;
-          qnn_interface_->interface_.errorGetMessage(rc, &err_msg);
+          iface()->interface_.errorGetMessage(rc, &err_msg);
           QRB_ERROR("memRegister(input) failed: ", (err_msg ? err_msg : "unknown"));
           cached_input_handle_ = nullptr;
           return StatusCode::FAILURE;
@@ -268,10 +373,10 @@ StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
 
         Qnn_MemHandle_t out_mem_handle = nullptr;
         auto out_rc =
-            qnn_interface_->interface_.memRegister(context_, &out_mem_desc, 1u, &out_mem_handle);
+            iface()->interface_.memRegister(context_, &out_mem_desc, 1u, &out_mem_handle);
         if (QNN_SUCCESS != out_rc) {
           const char * err_msg = nullptr;
-          qnn_interface_->interface_.errorGetMessage(out_rc, &err_msg);
+          iface()->interface_.errorGetMessage(out_rc, &err_msg);
           QRB_ERROR("memRegister(output) failed: ", (err_msg ? err_msg : "unknown"));
           return StatusCode::FAILURE;
         }
@@ -294,7 +399,7 @@ StatusCode QnnInference::inference_execute_dmabuf(int dmabuf_fd,
     }
 
     // EXECUTE: No register/deregister overhead
-    auto exec_rc = qnn_interface_->interface_.graphExecute(graph_info.graph, io_tensors.inputs_,
+    auto exec_rc = iface()->interface_.graphExecute(graph_info.graph, io_tensors.inputs_,
         io_tensors.num_of_input_tensors_, io_tensors.outputs_, io_tensors.num_of_output_tensors_,
         nullptr, nullptr);
 
@@ -445,21 +550,26 @@ void QnnInference::free_graphs_info()
     }
   };
 
-  for (uint32_t i = 0; i < graphs_count_; i++) {
-    auto & graph_info = graphs_info_[i];
-    check_and_free(graph_info->graph_name);
+  if (*graphs_info_ != nullptr) {
+    for (uint32_t i = 0; i < graphs_count_; i++) {
+      GraphInfo & graph_info = (*graphs_info_)[i];
+      check_and_free(graph_info.graph_name);
 
-    QnnTensor tensor_ops;
-    tensor_ops.free_qnn_tensors(graph_info->input_tensors, graph_info->num_of_input_tensors);
-    tensor_ops.free_qnn_tensors(graph_info->output_tensors, graph_info->num_of_output_tensors);
+      QnnTensor tensor_ops;
+      tensor_ops.free_qnn_tensors(graph_info.input_tensors, graph_info.num_of_input_tensors);
+      tensor_ops.free_qnn_tensors(graph_info.output_tensors, graph_info.num_of_output_tensors);
+    }
+    check_and_free(*graphs_info_);
   }
 
-  check_and_free(*graphs_info_);
   check_and_free(graphs_info_);
 }
 
 void QnnInference::free_context()
 {
+  if (!owned_context_) {
+    return;
+  }
   if (QNN_CONTEXT_NO_ERROR != qnn_interface_->interface_.contextFree(context_, nullptr)) {
     QRB_ERROR("Failed to free context!");
   }
@@ -469,6 +579,9 @@ void QnnInference::free_context()
 
 void QnnInference::free_device()
 {
+  if (!owned_context_) {
+    return;
+  }
   if (perf_initialized_ && perf_infra_.destroyPowerConfigId != nullptr) {
     perf_infra_.destroyPowerConfigId(power_config_id_);
     perf_initialized_ = false;
@@ -488,6 +601,9 @@ void QnnInference::free_device()
 
 void QnnInference::free_backend()
 {
+  if (!owned_context_) {
+    return;
+  }
   if (qnn_interface_->interface_.backendFree != nullptr) {
     if (QNN_BACKEND_NO_ERROR != qnn_interface_->interface_.backendFree(backend_handle_)) {
       QRB_ERROR("Could not free backend!");
@@ -658,65 +774,58 @@ StatusCode QnnInference::get_and_set_graph_info_from_binary(
   return StatusCode::SUCCESS;
 }
 
-template <typename T>
-StatusCode QnnInference::copy_graph_info(T graph_info_from_binary)
+// Helper: allocate and deep-copy tensor metadata from a QNN tensor array.
+static StatusCode set_up_tensors_info(
+    const Qnn_Tensor_t * src, const uint32_t cnt, Qnn_Tensor_t *& dst)
 {
-  graphs_info_ = (GraphInfo **)calloc(graphs_count_, sizeof(GraphInfo *));
+  dst = (Qnn_Tensor_t *)calloc(cnt, sizeof(Qnn_Tensor_t));
+  if (nullptr == dst) {
+    return StatusCode::FAILURE;
+  }
+  QnnTensor tensor_ops;
+  for (size_t j = 0; j < cnt; j++) {
+    dst[j] = QNN_TENSOR_INIT;
+    if (StatusCode::SUCCESS != tensor_ops.tensor_info_deep_copy(&dst[j], &src[j])) {
+      return StatusCode::FAILURE;
+    }
+  }
+  return StatusCode::SUCCESS;
+}
+
+// GraphInfoMember is a pointer-to-member selecting graphInfoV1/V2/V3 out of
+// QnnSystemContext_GraphInfo_t, so the same loop body works for every binary-info version.
+template <auto GraphInfoMember>
+StatusCode QnnInference::copy_graph_info(const QnnSystemContext_GraphInfo_t * graphs_array)
+{
+  // graphs_info_ is GraphInfo** where *graphs_info_ points to a contiguous GraphInfo array.
+  // Allocate the outer pointer and the inner contiguous array.
+  graphs_info_ = (GraphInfo **)calloc(1, sizeof(GraphInfo *));
   if (nullptr == graphs_info_) {
     return StatusCode::FAILURE;
   }
-
-  for (uint32_t i = 0; i < graphs_count_; i++) {
-    auto graph_info_dst = (GraphInfo *)calloc(1, sizeof(GraphInfo));
-    if (nullptr == graph_info_dst) {
-      return StatusCode::FAILURE;
-    }
-
-    graph_info_dst->graph_name =
-        (char *)malloc(sizeof(char) * (strlen(graph_info_from_binary.graphName) + 1));
-    if (nullptr == graph_info_dst->graph_name) {
-      return StatusCode::FAILURE;
-    }
-    memcpy(graph_info_dst->graph_name, graph_info_from_binary.graphName,
-        strlen(graph_info_from_binary.graphName));
-    graph_info_dst->graph_name[strlen(graph_info_from_binary.graphName)] = '\0';
-
-    auto set_up_tensors_info = [](const Qnn_Tensor_t * src, const uint32_t cnt,
-                                   Qnn_Tensor_t *& dst) {
-      dst = (Qnn_Tensor_t *)calloc(cnt, sizeof(Qnn_Tensor_t));
-      if (nullptr == dst) {
-        return StatusCode::FAILURE;
-      }
-
-      QnnTensor tensor_ops;
-
-      for (size_t i = 0; i < cnt; i++) {
-        dst[i] = QNN_TENSOR_INIT;
-        if (StatusCode::SUCCESS != tensor_ops.tensor_info_deep_copy(&dst[i], &src[i])) {
-          return StatusCode::FAILURE;
-        }
-      }
-
-      return StatusCode::SUCCESS;
-    };
-
-    graph_info_dst->num_of_input_tensors = graph_info_from_binary.numGraphInputs;
-    if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_from_binary.graphInputs,
-                                   graph_info_from_binary.numGraphInputs,
-                                   graph_info_dst->input_tensors)) {
-      return StatusCode::FAILURE;
-    }
-
-    graph_info_dst->num_of_output_tensors = graph_info_from_binary.numGraphOutputs;
-    if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_from_binary.graphOutputs,
-                                   graph_info_from_binary.numGraphOutputs,
-                                   graph_info_dst->output_tensors)) {
-      return StatusCode::FAILURE;
-    }
-
-    graphs_info_[i] = graph_info_dst;
+  *graphs_info_ = (GraphInfo *)calloc(graphs_count_, sizeof(GraphInfo));
+  if (nullptr == *graphs_info_) {
+    return StatusCode::FAILURE;
   }
-
+  for (uint32_t i = 0; i < graphs_count_; i++) {
+    GraphInfo & dst = (*graphs_info_)[i];
+    const auto & gi_src = graphs_array[i].*GraphInfoMember;
+    dst.graph_name = (char *)malloc(strlen(gi_src.graphName) + 1);
+    if (nullptr == dst.graph_name) {
+      return StatusCode::FAILURE;
+    }
+    memcpy(dst.graph_name, gi_src.graphName, strlen(gi_src.graphName) + 1);
+    dst.num_of_input_tensors = gi_src.numGraphInputs;
+    if (StatusCode::SUCCESS !=
+        set_up_tensors_info(gi_src.graphInputs, gi_src.numGraphInputs, dst.input_tensors)) {
+      return StatusCode::FAILURE;
+    }
+    dst.num_of_output_tensors = gi_src.numGraphOutputs;
+    if (StatusCode::SUCCESS !=
+        set_up_tensors_info(gi_src.graphOutputs, gi_src.numGraphOutputs, dst.output_tensors)) {
+      return StatusCode::FAILURE;
+    }
+  }
   return StatusCode::SUCCESS;
 }
 
@@ -736,7 +845,10 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
       QRB_INFO("Context binary info (V1): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
       graphs_count_ = info.numGraphs;
-      if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV1)) {
+      // Pass the full QnnSystemContext_GraphInfo_t array so copy_graph_info
+      // can stride correctly through all graphs.
+      if (StatusCode::SUCCESS !=
+          copy_graph_info<&QnnSystemContext_GraphInfo_t::graphInfoV1>(info.graphs)) {
         return StatusCode::FAILURE;
       }
       break;
@@ -746,7 +858,8 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
       QRB_INFO("Context binary info (V2): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
       graphs_count_ = info.numGraphs;
-      if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV2)) {
+      if (StatusCode::SUCCESS !=
+          copy_graph_info<&QnnSystemContext_GraphInfo_t::graphInfoV2>(info.graphs)) {
         return StatusCode::FAILURE;
       }
       break;
@@ -765,7 +878,8 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
         QRB_INFO("Model is a standard context binary targeting a specific SoC");
       }
       graphs_count_ = info.numGraphs;
-      if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV3)) {
+      if (StatusCode::SUCCESS !=
+          copy_graph_info<&QnnSystemContext_GraphInfo_t::graphInfoV3>(info.graphs)) {
         return StatusCode::FAILURE;
       }
       break;
@@ -808,14 +922,14 @@ void QnnInference::log_error_details(Qnn_ErrorHandle_t error_handle)
   }
 
   // Try verbose message first
-  if (qnn_interface_->interface_.errorGetVerboseMessage != nullptr) {
+  if (iface()->interface_.errorGetVerboseMessage != nullptr) {
     const char * verbose_msg = nullptr;
     if (QNN_SUCCESS ==
-        qnn_interface_->interface_.errorGetVerboseMessage(error_handle, &verbose_msg)) {
+        iface()->interface_.errorGetVerboseMessage(error_handle, &verbose_msg)) {
       if (verbose_msg != nullptr) {
         QRB_ERROR("Detailed error info: ", verbose_msg);
-        if (qnn_interface_->interface_.errorFreeVerboseMessage != nullptr) {
-          qnn_interface_->interface_.errorFreeVerboseMessage(verbose_msg);
+        if (iface()->interface_.errorFreeVerboseMessage != nullptr) {
+          iface()->interface_.errorFreeVerboseMessage(verbose_msg);
         }
         return;
       }
@@ -823,9 +937,9 @@ void QnnInference::log_error_details(Qnn_ErrorHandle_t error_handle)
   }
 
   // Fall back to basic error message
-  if (qnn_interface_->interface_.errorGetMessage != nullptr) {
+  if (iface()->interface_.errorGetMessage != nullptr) {
     const char * err_msg = nullptr;
-    if (QNN_SUCCESS == qnn_interface_->interface_.errorGetMessage(error_handle, &err_msg)) {
+    if (QNN_SUCCESS == iface()->interface_.errorGetMessage(error_handle, &err_msg)) {
       if (err_msg != nullptr) {
         QRB_ERROR("Error info: ", err_msg);
       }

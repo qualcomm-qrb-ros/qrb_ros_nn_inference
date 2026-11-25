@@ -212,11 +212,16 @@ StatusCode QnnTensor::setup_tensors(Qnn_Tensor_t *& tensor,
 /// @return SUCCESS or FAILURE
 StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_data)
 {
+  return write_input_tensors_ptr(input_data.data(), input_data.size());
+}
+
+StatusCode QnnTensor::write_input_tensors_ptr(const void * src, size_t src_size)
+{
   if (inputs_ == nullptr) {
     return StatusCode::FAILURE;
   }
 
-  // Calculate total expected size for all input tensors
+  // Calculate total expected size
   size_t total_expected_size = 0;
   for (uint32_t i = 0; i < num_of_input_tensors_; i++) {
     std::vector<size_t> shape;
@@ -226,13 +231,13 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_dat
     total_expected_size += get_tensor_size(&inputs_[i], shape);
   }
 
-  if (total_expected_size != input_data.size()) {
+  if (total_expected_size != src_size) {
     QRB_ERROR("Total size of all input tensors should be ", total_expected_size,
-        " bytes, but receive ", input_data.size(), " bytes");
+        " bytes, but receive ", src_size, " bytes");
     return StatusCode::FAILURE;
   }
 
-  // Fill data into each input tensor
+  // Copy src into the pre-allocated QNN ClientBuffer (must be in accessible memory).
   size_t data_offset = 0;
   for (uint32_t i = 0; i < num_of_input_tensors_; i++) {
     std::vector<size_t> shape;
@@ -247,9 +252,8 @@ StatusCode QnnTensor::write_input_tensors(const std::vector<uint8_t> & input_dat
 
     size_t tensor_size = get_tensor_size(&inputs_[i], shape);
 
-    // Copy data for this tensor
     memcpy(static_cast<char *>(get_tensor_client_buf(&inputs_[i]).data),
-        input_data.data() + data_offset, tensor_size);
+        static_cast<const char *>(src) + data_offset, tensor_size);
 
     data_offset += tensor_size;
   }
