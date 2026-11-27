@@ -659,62 +659,52 @@ StatusCode QnnInference::get_and_set_graph_info_from_binary(
 }
 
 template <typename T>
-StatusCode QnnInference::copy_graph_info(T graph_info_from_binary)
+StatusCode QnnInference::copy_graph_info(const T & graph_info_from_binary, uint32_t index)
 {
-  graphs_info_ = (GraphInfo **)calloc(graphs_count_, sizeof(GraphInfo *));
-  if (nullptr == graphs_info_) {
+  // graphs_info_[index] already points into the contiguous GraphInfo pool
+  // allocated by set_up_graph_info(); this only fills that one graph's slot.
+  GraphInfo * graph_info_dst = graphs_info_[index];
+
+  graph_info_dst->graph_name =
+      (char *)malloc(sizeof(char) * (strlen(graph_info_from_binary.graphName) + 1));
+  if (nullptr == graph_info_dst->graph_name) {
+    return StatusCode::FAILURE;
+  }
+  memcpy(graph_info_dst->graph_name, graph_info_from_binary.graphName,
+      strlen(graph_info_from_binary.graphName));
+  graph_info_dst->graph_name[strlen(graph_info_from_binary.graphName)] = '\0';
+
+  auto set_up_tensors_info = [](const Qnn_Tensor_t * src, const uint32_t cnt,
+                                 Qnn_Tensor_t *& dst) {
+    dst = (Qnn_Tensor_t *)calloc(cnt, sizeof(Qnn_Tensor_t));
+    if (nullptr == dst) {
+      return StatusCode::FAILURE;
+    }
+
+    QnnTensor tensor_ops;
+
+    for (size_t i = 0; i < cnt; i++) {
+      dst[i] = QNN_TENSOR_INIT;
+      if (StatusCode::SUCCESS != tensor_ops.tensor_info_deep_copy(&dst[i], &src[i])) {
+        return StatusCode::FAILURE;
+      }
+    }
+
+    return StatusCode::SUCCESS;
+  };
+
+  graph_info_dst->num_of_input_tensors = graph_info_from_binary.numGraphInputs;
+  if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_from_binary.graphInputs,
+                                 graph_info_from_binary.numGraphInputs,
+                                 graph_info_dst->input_tensors)) {
     return StatusCode::FAILURE;
   }
 
-  for (uint32_t i = 0; i < graphs_count_; i++) {
-    auto graph_info_dst = (GraphInfo *)calloc(1, sizeof(GraphInfo));
-    if (nullptr == graph_info_dst) {
-      return StatusCode::FAILURE;
-    }
-
-    graph_info_dst->graph_name =
-        (char *)malloc(sizeof(char) * (strlen(graph_info_from_binary.graphName) + 1));
-    if (nullptr == graph_info_dst->graph_name) {
-      return StatusCode::FAILURE;
-    }
-    memcpy(graph_info_dst->graph_name, graph_info_from_binary.graphName,
-        strlen(graph_info_from_binary.graphName));
-    graph_info_dst->graph_name[strlen(graph_info_from_binary.graphName)] = '\0';
-
-    auto set_up_tensors_info = [](const Qnn_Tensor_t * src, const uint32_t cnt,
-                                   Qnn_Tensor_t *& dst) {
-      dst = (Qnn_Tensor_t *)calloc(cnt, sizeof(Qnn_Tensor_t));
-      if (nullptr == dst) {
-        return StatusCode::FAILURE;
-      }
-
-      QnnTensor tensor_ops;
-
-      for (size_t i = 0; i < cnt; i++) {
-        dst[i] = QNN_TENSOR_INIT;
-        if (StatusCode::SUCCESS != tensor_ops.tensor_info_deep_copy(&dst[i], &src[i])) {
-          return StatusCode::FAILURE;
-        }
-      }
-
-      return StatusCode::SUCCESS;
-    };
-
-    graph_info_dst->num_of_input_tensors = graph_info_from_binary.numGraphInputs;
-    if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_from_binary.graphInputs,
-                                   graph_info_from_binary.numGraphInputs,
-                                   graph_info_dst->input_tensors)) {
-      return StatusCode::FAILURE;
-    }
-
-    graph_info_dst->num_of_output_tensors = graph_info_from_binary.numGraphOutputs;
-    if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_from_binary.graphOutputs,
-                                   graph_info_from_binary.numGraphOutputs,
-                                   graph_info_dst->output_tensors)) {
-      return StatusCode::FAILURE;
-    }
-
-    graphs_info_[i] = graph_info_dst;
+  graph_info_dst->num_of_output_tensors = graph_info_from_binary.numGraphOutputs;
+  if (StatusCode::SUCCESS != set_up_tensors_info(graph_info_from_binary.graphOutputs,
+                                 graph_info_from_binary.numGraphOutputs,
+                                 graph_info_dst->output_tensors)) {
+    return StatusCode::FAILURE;
   }
 
   return StatusCode::SUCCESS;
@@ -729,6 +719,28 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
     return StatusCode::FAILURE;
   }
 
+  // Allocate graphs_info_ as a pointer array whose entries point into ONE
+  // contiguous pool of graphs_count_ GraphInfo structs. This matches the
+  // layout that QnnModel_composeGraphs() uses for the .so path, so that the
+  // shared execute-side code ((*(graphs_info_))[i]) works correctly for the
+  // .bin path too, and every graph (not just graph 0) gets copied.
+  auto allocate_graphs_info_pool = [this]() -> StatusCode {
+    graphs_info_ = (GraphInfo **)calloc(graphs_count_, sizeof(GraphInfo *));
+    if (nullptr == graphs_info_) {
+      return StatusCode::FAILURE;
+    }
+    GraphInfo * pool = (GraphInfo *)calloc(graphs_count_, sizeof(GraphInfo));
+    if (nullptr == pool) {
+      free(graphs_info_);
+      graphs_info_ = nullptr;
+      return StatusCode::FAILURE;
+    }
+    for (uint32_t i = 0; i < graphs_count_; i++) {
+      graphs_info_[i] = &pool[i];
+    }
+    return StatusCode::SUCCESS;
+  };
+
   // Log context binary metadata for diagnostics
   switch (binary_info->version) {
     case QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_1: {
@@ -736,8 +748,13 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
       QRB_INFO("Context binary info (V1): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
       graphs_count_ = info.numGraphs;
-      if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV1)) {
+      if (StatusCode::SUCCESS != allocate_graphs_info_pool()) {
         return StatusCode::FAILURE;
+      }
+      for (uint32_t i = 0; i < graphs_count_; i++) {
+        if (StatusCode::SUCCESS != copy_graph_info(info.graphs[i].graphInfoV1, i)) {
+          return StatusCode::FAILURE;
+        }
       }
       break;
     }
@@ -746,8 +763,13 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
       QRB_INFO("Context binary info (V2): SDK build=", (info.buildId ? info.buildId : "unknown"),
           ", target SoC=", (info.socVersion ? info.socVersion : "unknown"));
       graphs_count_ = info.numGraphs;
-      if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV2)) {
+      if (StatusCode::SUCCESS != allocate_graphs_info_pool()) {
         return StatusCode::FAILURE;
+      }
+      for (uint32_t i = 0; i < graphs_count_; i++) {
+        if (StatusCode::SUCCESS != copy_graph_info(info.graphs[i].graphInfoV2, i)) {
+          return StatusCode::FAILURE;
+        }
       }
       break;
     }
@@ -765,8 +787,13 @@ StatusCode QnnInference::set_up_graph_info(const QnnSystemContext_BinaryInfo_t *
         QRB_INFO("Model is a standard context binary targeting a specific SoC");
       }
       graphs_count_ = info.numGraphs;
-      if (StatusCode::SUCCESS != copy_graph_info(info.graphs->graphInfoV3)) {
+      if (StatusCode::SUCCESS != allocate_graphs_info_pool()) {
         return StatusCode::FAILURE;
+      }
+      for (uint32_t i = 0; i < graphs_count_; i++) {
+        if (StatusCode::SUCCESS != copy_graph_info(info.graphs[i].graphInfoV3, i)) {
+          return StatusCode::FAILURE;
+        }
       }
       break;
     }
@@ -793,7 +820,7 @@ StatusCode QnnInference::create_context_from_binary(const std::shared_ptr<uint8_
 
   for (uint32_t i = 0; i < graphs_count_; i++) {
     if (QNN_SUCCESS != qnn_interface_->interface_.graphRetrieve(
-                           context_, (*graphs_info_)[i].graph_name, &((*graphs_info_)[i].graph))) {
+                           context_, graphs_info_[i]->graph_name, &(graphs_info_[i]->graph))) {
       QRB_ERROR("Unable to retrieve graph handle for the graph");
       return StatusCode::FAILURE;
     }
